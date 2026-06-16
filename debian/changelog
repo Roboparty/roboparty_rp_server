@@ -1,4 +1,4 @@
-roboparty-rp-server (1.0.0-1) unstable; urgency=medium
+roboparty-rp-server (1.1.0-1) unstable; urgency=medium
 
   * Initial release: FastAPI + WebSocket AT-protocol server.
   * Supports motors_py, imu_py, bms_py, robot_py bindings.

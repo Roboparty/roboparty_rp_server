@@ -1,0 +1,32 @@
+# RoboParty RP Server — robot configuration
+robot:
+  policy_config: "/opt/roboparty/share/roboparty-inference/config/inference/inference.yaml"
+
+motors:
+  - interface: "can0"
+    interface_type: "can"
+    motor_type: "DM"
+    motor_ids: [1, 2, 3, 4, 5]
+    motor_models: [0, 0, 0, 0, 0]
+    motor_zero_offsets: [0.0, 0.0, 0.0, 0.0, 0.0]
+    master_id_offset: 16
+
+imu:
+  interface_type: "serial"
+  interface: "/dev/ttyUSB0"
+  imu_type: "HIPNUC"
+  imu_id: 8
+  baudrate: 921600
+
+bms:
+  bms_type: "TWS"
+  socket_path: "/tmp/bms.sock"
+
+server:
+  host: "0.0.0.0"
+  port: 8765
+
+telemetry:
+  imu_hz: 100
+  battery_hz: 1
+  error_hz: 10

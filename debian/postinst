@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+
+# Install Python dependencies from requirements.txt
+if [ -f /opt/roboparty/share/roboparty-rp-server/config/requirements.txt ]; then
+    pip3 install --break-system-packages -r /opt/roboparty/share/roboparty-rp-server/config/requirements.txt || true
+fi

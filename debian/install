@@ -1,0 +1,3 @@
+rp-server-start.sh opt/roboparty/bin/
+config/robot.yaml opt/roboparty/share/roboparty-rp-server/config/
+requirements.txt opt/roboparty/share/roboparty-rp-server/config/

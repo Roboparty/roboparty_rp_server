@@ -5,7 +5,10 @@ After=network.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/rp-server
-ExecStart=/opt/roboparty/bin/rp-server-start.sh
+Environment=PYTHONPATH=/opt/roboparty/lib/python3/dist-packages
+Environment=RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty-inference/config/robot/robot.yaml
+Environment=RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
+ExecStart=python3 -m rp_server --host ${RP_HOST} --port ${RP_PORT} --log-level ${RP_LOG_LEVEL}
 Restart=on-failure
 RestartSec=3
 

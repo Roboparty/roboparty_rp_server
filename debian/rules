@@ -2,10 +2,6 @@
 %:
 	dh $@
 
-override_dh_fixperms:
-	dh_fixperms
-	chmod +x debian/roboparty-rp-server/opt/roboparty/bin/rp-server-start.sh || true
-
 override_dh_install:
 	dh_install
 	# Python server package

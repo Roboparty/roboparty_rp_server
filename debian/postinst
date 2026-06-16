@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-# Install Python dependencies
-if [ -f /opt/roboparty/share/roboparty-rp-server/config/requirements.txt ]; then
-    pip3 install --break-system-packages -r /opt/roboparty/share/roboparty-rp-server/config/requirements.txt || true
-fi
-
-# Enable and start systemd service
 if [ "$1" = "configure" ] && command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
     systemctl enable rp-server.service || true

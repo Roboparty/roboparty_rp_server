@@ -142,19 +142,14 @@ telemetry:
   error_hz: 10
 ```
 
-环境变量可覆盖：
-- `RP_ROBOT_CONFIG` — 机器人配置文件路径
-- `RP_SERVER_CONFIG` — 服务器配置文件路径
-- `RP_HOST` / `RP_PORT` / `RP_LOG_LEVEL` — 运行时参数
+环境变量（`/etc/default/rp-server`）：
+- `RP_HOST` / `RP_PORT` / `RP_LOG_LEVEL` — 运行时参数，可在此文件或 systemd override 中修改
 
 ## 安装
 
 ```bash
-# 构建 deb
 dpkg-buildpackage -us -uc -b
 sudo dpkg -i ../roboparty-rp-server_*.deb
-
-# 安装后自动 pip install -r requirements.txt（由 postinst 执行）
 ```
 
 ### 启动
@@ -177,18 +172,21 @@ python3 -m rp_server --config ../roboparty_inference/config/robot.yaml --port 87
 
 ```
 roboparty_rp_server/
-├── config/robot.yaml              # 机器人配置
-├── rp-server-start.sh             # 启动脚本 → /opt/roboparty/bin/
-├── requirements.txt               # Python 依赖
+├── etc/
+│   ├── default/rp-server                   → /etc/default/rp-server
+│   └── systemd/system/rp-server.service    → /etc/systemd/system/
+├── config/
+│   └── server.yaml                         → /opt/roboparty/share/roboparty-rp-server/config/
 ├── src/rp_server/
-│   ├── app.py                     # FastAPI + WebSocket + AT 分发
-│   ├── at_parser.py               # AT 协议解析/序列化
-│   ├── error_codes.py             # DM/EVO/LRO/XYN 错误码表
-│   ├── joy_bridge.py              # uinput 虚拟手柄
-│   ├── monitors.py                # 后台推送：IMU/BMS/错误
-│   └── robot.py                   # 硬件管理（motors/imu/bms）
-├── debian/                        # Debian 打包
-└── .github/                       # CI/CD（build-deb.yml）
+│   ├── app.py                              # FastAPI + WebSocket + AT 分发
+│   ├── at_parser.py                        # AT 协议解析/序列化
+│   ├── error_codes.py                      # DM/EVO/LRO/XYN 错误码表
+│   ├── joy_bridge.py                       # uinput 虚拟手柄
+│   ├── monitors.py                         # 后台推送：IMU/BMS/错误
+│   └── robot.py                            # 硬件管理（motors/imu/bms）
+├── debian/                                 # Debian 打包
+├── requirements.txt
+└── .github/                                # CI/CD（build-deb.yml）
 ```
 
 ## 依赖
@@ -196,8 +194,7 @@ roboparty_rp_server/
 | 类型 | 包名 |
 |------|------|
 | RoboParty | roboparty-base, roboparty-motors, roboparty-imu, roboparty-bms, roboparty-inference |
-| 系统 | python3, python3-pip, python3-yaml, python3-psutil |
-| PyPI | fastapi, uvicorn, websockets, PyYAML, psutil, evdev |
+| 系统 / PyPI | python3, python3-fastapi, python3-uvicorn, python3-websockets, python3-yaml, python3-psutil, python3-evdev |
 
 ## License
 

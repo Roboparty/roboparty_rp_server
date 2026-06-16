@@ -13,8 +13,12 @@ Depends: roboparty-base (>= 1.0.0),
          roboparty-bms (>= 1.0.0),
          roboparty-inference (>= 1.0.0),
          python3,
-         python3-pip,
+         python3-fastapi,
+         python3-uvicorn,
+         python3-websockets,
          python3-yaml,
+         python3-psutil,
+         python3-evdev,
          ${misc:Depends}
 Description: RoboParty unified web backend server
  FastAPI + WebSocket server providing AT-command protocol for

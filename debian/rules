@@ -4,6 +4,7 @@
 
 override_dh_install:
 	dh_install
-	# Python server package
+	# Python server package (nested)
 	mkdir -p debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server
-	cp -r src/rp_server/*.py debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server/
+	cp -r src/rp_server/*.py src/rp_server/transport src/rp_server/protocol src/rp_server/drivers \
+		debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server/

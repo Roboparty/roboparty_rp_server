@@ -1,7 +1,5 @@
 #!/bin/bash
 set -e
 
-if [ "$1" = "remove" ] && command -v systemctl >/dev/null 2>&1; then
-    systemctl stop rp-server.service || true
-    systemctl disable rp-server.service || true
-fi
+systemctl disable rp-server.service || true
+systemctl stop rp-server.service || true

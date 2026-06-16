@@ -5,7 +5,6 @@ __pycache__/
 *.pyc
 
 # debhelper build outputs
-obj-*/
 debian/files
 debian/debhelper-build-stamp
 debian/*.debhelper.log

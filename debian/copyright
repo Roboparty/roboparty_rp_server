@@ -3,11 +3,11 @@ Upstream-Name: roboparty-rp-server
 Source: https://github.com/wentywenty/roboparty_rp_server
 
 Files: *
-Copyright: 2026 RoboParty
+Copyright: 2026 wentywenty
 License: GPL-3.0
 
 Files: debian/*
-Copyright: 2026 RoboParty
+Copyright: 2026 wentywenty
 License: GPL-3.0
 
 License: GPL-3.0

@@ -98,12 +98,17 @@ def resp_conn(connected: bool, hardware_ok: bool) -> str:
     return f"+CONN: {hw},{st}"
 
 
-def resp_btn(cmd_id: str, status: str) -> str:
+def resp_btn(cmd_id: str, status: str, timestamp: Optional[float] = None) -> str:
+    if timestamp is not None:
+        return f"+BTN_RSP={cmd_id},{status},{timestamp:.6f}"
     return f"+BTN_RSP={cmd_id},{status}"
 
 
-def resp_sysinfo(cpu: float, mem: float) -> str:
-    return f"+SYSINFO: {cpu:.1f},{mem:.1f}"
+def resp_sysinfo(cpu: float, mem: float, *extra) -> str:
+    base = f"+SYSINFO: {cpu:.1f},{mem:.1f}"
+    if extra:
+        base += "," + ",".join(str(e) for e in extra)
+    return base
 
 
 def resp_policy(name: str, state: str) -> str:

@@ -1,0 +1,13 @@
+# RoboParty RP Server — server config
+server:
+  host: "0.0.0.0"
+  port: 8765
+
+bms:
+  bms_type: "TWS"
+  socket_path: "/tmp/bms.sock"
+
+telemetry:
+  imu_hz: 100
+  battery_hz: 1
+  error_hz: 10

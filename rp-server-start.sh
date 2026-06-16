@@ -12,24 +12,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$SCRIPT_DIR" == /opt/roboparty/bin* ]]; then
     # Debian package mode
     INSTALL_ROOT="/opt/roboparty"
-    CONFIG_FILE="$INSTALL_ROOT/share/roboparty-rp-server/config/robot.yaml"
+    ROBOT_CONFIG="$INSTALL_ROOT/share/roboparty-inference/config/robot/robot.yaml"
+    SERVER_CONFIG="$INSTALL_ROOT/share/roboparty-rp-server/config/server.yaml"
     PYTHONPATH="$INSTALL_ROOT/lib/python3/dist-packages:${PYTHONPATH:-}"
 else
     # Development mode
     INSTALL_ROOT="$(dirname "$SCRIPT_DIR")"
-    CONFIG_FILE="$INSTALL_ROOT/config/robot.yaml"
+    ROBOT_CONFIG="$INSTALL_ROOT/../roboparty_inference/config/robot.yaml"
+    SERVER_CONFIG="$INSTALL_ROOT/config/server.yaml"
     PYTHONPATH="$INSTALL_ROOT/src:${PYTHONPATH:-}"
 fi
 
 export PYTHONPATH
-export RP_SERVER_CONFIG="$CONFIG_FILE"
-
-HOST="${RP_HOST:-0.0.0.0}"
-PORT="${RP_PORT:-8765}"
-LOG_LEVEL="${RP_LOG_LEVEL:-info}"
+export RP_ROBOT_CONFIG="$ROBOT_CONFIG"
+export RP_SERVER_CONFIG="$SERVER_CONFIG"
 
 echo "=== RoboParty RP Server ==="
-echo "  config:  $CONFIG_FILE"
+echo "  robot:   $ROBOT_CONFIG"
+echo "  server:  $SERVER_CONFIG"
 echo "  listen:  $HOST:$PORT"
 echo "============================"
 

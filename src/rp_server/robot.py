@@ -35,13 +35,6 @@ except ImportError:
     HAS_BMS = False
     logger.warning("bms_py not available — BMS disabled")
 
-try:
-    import robot_py
-    HAS_ROBOT = True
-except ImportError:
-    HAS_ROBOT = False
-    logger.warning("robot_py not available — policy execution disabled")
-
 
 class MotorInfo:
     """Per-motor metadata."""
@@ -61,7 +54,7 @@ class RobotManager:
     Usage:
         mgr = RobotManager(config_dict)
         mgr.init_all()
-        # … use motors / imu / bms / robot_interface …
+        # … use motors / imu / bms …
         mgr.deinit_all()
     """
 
@@ -70,11 +63,8 @@ class RobotManager:
         self._motors: list[MotorInfo] = []
         self._imu = None
         self._bms = None
-        self._robot_iface = None
 
         self._hw_ready = False
-        self._policy_name = ""
-        self._policy_running = False
 
     # ------------------------------------------------------------------
     # Initialization
@@ -83,9 +73,11 @@ class RobotManager:
     def init_all(self) -> bool:
         """Initialise all hardware subsystems.  Returns True on success."""
         mot_ok = self._init_motors()
-        imu_ok = self._init_imu()
-        bms_ok = self._init_bms()
-        pol_ok = self._init_robot()
+        self._init_imu()
+        self._init_bms()
+        # robot_py.RobotInterface is NOT initialised here — policy
+        # execution runs as a separate ros2 inference_node subprocess.
+        # RobotInterface would conflict with it on the same CAN bus.
         self._hw_ready = mot_ok
         return mot_ok
 
@@ -113,18 +105,32 @@ class RobotManager:
             return False
         self._motors.clear()
         try:
-            for bus_cfg in self._config.get("motors", []):
-                iface = bus_cfg["interface"]
-                iface_type = bus_cfg["interface_type"]
-                mtype = bus_cfg["motor_type"]
-                ids = bus_cfg["motor_ids"]
-                models = bus_cfg.get("motor_models", [0] * len(ids))
-                offsets = bus_cfg.get("motor_zero_offsets", [0.0] * len(ids))
-                master_off = bus_cfg.get("master_id_offset", 0)
+            mc = self._config.get("motors", {})
+            ids = mc.get("motor_id", [])
+            if not ids:
+                logger.warning("no motors configured")
+                return False
 
-                for idx, mid in enumerate(ids):
-                    model = models[idx] if idx < len(models) else 0
-                    zero_off = offsets[idx] if idx < len(offsets) else 0.0
+            models = mc.get("motor_model", [0] * len(ids))
+            offsets = mc.get("motor_zero_offset", [0.0] * len(ids))
+            iface_types = mc.get("motor_interface_type", ["can"])
+            ifaces = mc.get("motor_interface", ["can0"])
+            mtypes = mc.get("motor_type", ["DM"])
+            num_per_bus = mc.get("motor_num", [len(ids)])
+            master_off = mc.get("master_id_offset", 0)
+
+            motor_idx = 0
+            global_idx = 0
+            for bus_i, n in enumerate(num_per_bus):
+                iface = ifaces[bus_i] if bus_i < len(ifaces) else "can0"
+                iface_type = iface_types[bus_i] if bus_i < len(iface_types) else "can"
+                mtype = mtypes[bus_i] if bus_i < len(mtypes) else "DM"
+                for _ in range(n):
+                    if motor_idx >= len(ids):
+                        break
+                    mid = ids[motor_idx]
+                    model = models[motor_idx] if motor_idx < len(models) else 0
+                    zero_off = offsets[motor_idx] if motor_idx < len(offsets) else 0.0
                     m = motors_py.MotorDriver.create_motor(
                         motor_id=mid,
                         interface_type=iface_type,
@@ -137,8 +143,11 @@ class RobotManager:
                     m.init_motor()
                     self._motors.append(MotorInfo(
                         motor=m, motor_id=mid, interface=iface,
-                        motor_type=mtype, index=idx,
+                        motor_type=mtype, index=global_idx,
                     ))
+                    motor_idx += 1
+                    global_idx += 1
+
             logger.info("motors initialised: %d motors", len(self._motors))
             return True
         except Exception as exc:
@@ -280,66 +289,25 @@ class RobotManager:
             return None
 
     # ------------------------------------------------------------------
-    # Policy / robot_py
+    # Joystick
     # ------------------------------------------------------------------
 
-    def _init_robot(self) -> bool:
-        if not HAS_ROBOT:
-            return False
-        try:
-            cfg_path = self._config.get("robot", {}).get(
-                "policy_config",
-                "/opt/roboparty/share/roboparty-inference/config/inference/inference.yaml",
-            )
-            self._robot_iface = robot_py.RobotInterface(cfg_path)
-            logger.info("RobotInterface initialised (config: %s)", cfg_path)
-            return True
-        except Exception as exc:
-            logger.error("RobotInterface init failed: %s", exc)
-            return False
-
-    def start_policy(self, name: str = "") -> bool:
-        if not self._robot_iface:
-            return False
-        try:
-            self._robot_iface.init_motors()
-            time.sleep(0.5)
-            self._policy_name = name or "default"
-            self._policy_running = True
-            logger.info("policy started: %s", self._policy_name)
-            return True
-        except Exception as exc:
-            logger.error("start policy failed: %s", exc)
-            return False
-
-    def stop_policy(self):
-        self._policy_running = False
-        self._policy_name = ""
-        self._stop_policy()
-
-    def _stop_policy(self):
-        if not self._robot_iface:
+    def set_motor_mit(self, motor_index: int, pos: float, vel: float, kp: float, kd: float, torque: float):
+        """Send MIT command to a single motor by index (0-based)."""
+        if motor_index < 0 or motor_index >= len(self._motors):
             return
         try:
-            # RobotInterface cleanup — motors are managed by the interface
-            pass
-        except Exception:
-            pass
+            self._motors[motor_index].motor.set_motor_control_mode(
+                motors_py.MotorControlMode.MIT)
+            self._motors[motor_index].motor.motor_mit_cmd(pos, vel, kp, kd, torque)
+        except Exception as exc:
+            logger.warning("motor_mit_cmd[%d] failed: %s", motor_index, exc)
 
-    @property
-    def policy_name(self) -> str:
-        return self._policy_name
-
-    @property
-    def policy_running(self) -> bool:
-        return self._policy_running
-
-    # ------------------------------------------------------------------
-    # Joystick action
-    # ------------------------------------------------------------------
-
-    def apply_joystick_mit(self, joint_positions: list[float],
-                           kp: float = 10.0, kd: float = 1.0):
-        """Direct per-joint MIT control (used by joystick)."""
-        for i, pos in enumerate(joint_positions):
-            self.set_motor_mit(i, float(pos), 0.0, kp, kd, 0.0)
+    def set_all_motors_mit(self, pos: float, vel: float, kp: float, kd: float, torque: float):
+        """Send MIT command to all motors."""
+        for mi in self._motors:
+            try:
+                mi.motor.set_motor_control_mode(motors_py.MotorControlMode.MIT)
+                mi.motor.motor_mit_cmd(pos, vel, kp, kd, torque)
+            except Exception as exc:
+                logger.warning("motor_mit_cmd[%d] failed: %s", mi.motor_id, exc)

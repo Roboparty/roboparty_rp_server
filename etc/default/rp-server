@@ -1,0 +1,4 @@
+# RoboParty RP Server — default environment
+RP_HOST=0.0.0.0
+RP_PORT=8765
+RP_LOG_LEVEL=info

@@ -11,6 +11,7 @@ Client → Server (commands):
   AT+POLICY?                        policy status query
   AT+POLICY=<name>,<action>         policy start/stop (action: start|stop)
   AT+ERR?                           motor error query
+  AT+RESET                          reset: clear motor errors, zero joy, stop policy
 
 Server → Client (responses):
   +CONN: <type>,<status>            connection status response
@@ -18,6 +19,7 @@ Server → Client (responses):
   +SYSINFO: <cpu%>,<mem%>           system info response
   +POLICY: <name>,<state>           policy status response
   +ERR: <motor_id>,<error>,<name>   motor error response (per motor)
+  +RESET: <status>                  reset acknowledgment
 
 Server → Client (push events, prefixed with @):
   @IMU <w> <x> <y> <z> <gx> <gy> <gz> <ax> <ay> <az> <temp>
@@ -40,6 +42,7 @@ class CmdType(Enum):
     POLICY_QUERY = "AT+POLICY?"
     POLICY_CMD = "AT+POLICY"
     ERR_QUERY = "AT+ERR?"
+    RESET = "AT+RESET"
 
 
 @dataclass
@@ -71,6 +74,10 @@ class AtCommand:
         # AT+ERR?
         if line == "AT+ERR?":
             return cls(raw=line, cmd=CmdType.ERR_QUERY, ts=ts)
+
+        # AT+RESET
+        if line == "AT+RESET":
+            return cls(raw=line, cmd=CmdType.RESET, ts=ts)
 
         # AT+BTN=<name>,<state>,<id>
         m = re.match(r"AT\+BTN=(\w+),(\w+),(\d+)", line)
@@ -117,6 +124,10 @@ def resp_policy(name: str, state: str) -> str:
 
 def resp_err(motor_id: int, err_code: int, err_name: str) -> str:
     return f"+ERR: {motor_id},0x{err_code:02X},{err_name}"
+
+
+def resp_reset(status: str) -> str:
+    return f"+RESET: {status}"
 
 
 # --- Push event serializers ---

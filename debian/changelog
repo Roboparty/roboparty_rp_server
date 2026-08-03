@@ -1,3 +1,21 @@
+roboparty-rp-server (1.1.1-1) unstable; urgency=medium
+
+  * Add AT+RESET command: clear motor errors, zero gamepad axes and
+    buttons, stop running policy. Response: +RESET: OK|FAIL.
+  * Add JoyDriver.reset() to zero all axes and release buttons.
+  * Add rp_server.btwifi: Bluetooth (RFCOMM/SPP) WiFi provisioning
+    service with systemd unit rp-btwifi.service.
+
+ -- RoboParty <2321901849@qq.com>  Mon, 27 Jul 2026 14:00:00 +0800
+
+roboparty-rp-server (1.1.0-2) unstable; urgency=medium
+
+  * Add chat (DeepSeek), QR auth JWT, MCP tools, gamepad AT bridge.
+  * Add mock mode, ws selftest, docs, canutils-ndk build script.
+  * Harden systemd unit; ship docs/scripts in package.
+
+ -- RoboParty <2321901849@qq.com>  Fri, 17 Jul 2026 15:20:00 +0800
+
 roboparty-rp-server (1.1.0-1) unstable; urgency=medium
 
   * Initial release: FastAPI + WebSocket AT-protocol server.

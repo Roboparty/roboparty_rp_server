@@ -1,3 +1,6 @@
 etc/default/rp-server etc/default/
 etc/systemd/system/rp-server.service etc/systemd/system/
+etc/systemd/system/rp-btwifi.service etc/systemd/system/
 config/server.yaml opt/roboparty/share/roboparty-rp-server/config/
+config/dev_robot.yaml opt/roboparty/share/roboparty-rp-server/config/
+requirements-board.txt opt/roboparty/share/roboparty-rp-server/

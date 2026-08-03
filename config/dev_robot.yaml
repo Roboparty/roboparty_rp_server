@@ -1,0 +1,24 @@
+# Minimal robot config for local / mock development (no real hardware).
+robot:
+  launch_cmd: "echo mock-policy"
+
+motors:
+  motor_id: []
+  motor_model: []
+  motor_zero_offset: []
+  motor_interface_type: ["can"]
+  motor_interface: ["can0"]
+  motor_type: ["DM"]
+  motor_num: [0]
+  master_id_offset: 0
+
+imu:
+  imu_id: 8
+  interface_type: serial
+  interface: /dev/null
+  imu_type: HIPNUC
+  baudrate: 921600
+
+bms:
+  bms_type: TWS
+  socket_path: /tmp/bms.sock

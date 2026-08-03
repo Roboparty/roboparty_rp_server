@@ -1,16 +1,33 @@
 [Unit]
 Description=RoboParty RP Server
-After=network.target
+Documentation=file:///opt/roboparty/share/roboparty-rp-server/docs/deploy.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-EnvironmentFile=-/etc/default/rp-server
-Environment=PYTHONPATH=/opt/roboparty/lib/python3/dist-packages
-Environment=RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty-inference/config/robot/robot.yaml
+User=root
+Group=root
+WorkingDirectory=/opt/roboparty/share/roboparty-rp-server
+Environment=PYTHONPATH=/opt/roboparty/lib/python3/vendor-packages:/opt/roboparty/lib/python3/dist-packages
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=RP_ROBOT_CONFIG=/opt/roboparty/share/roboto-inference/config/robot/robot.yaml
 Environment=RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
-ExecStart=python3 -m rp_server --host ${RP_HOST} --port ${RP_PORT} --log-level ${RP_LOG_LEVEL}
-Restart=on-failure
-RestartSec=3
+EnvironmentFile=-/etc/default/rp-server
+EnvironmentFile=-/etc/rp-server/rp-server.env
+ExecStartPre=/usr/bin/test -r ${RP_ROBOT_CONFIG}
+ExecStart=/usr/bin/python3 -m rp_server --config ${RP_ROBOT_CONFIG} --host ${RP_HOST} --port ${RP_PORT} --log-level ${RP_LOG_LEVEL}
+# Uvicorn can exit with status 0 after a lifespan startup error.
+Restart=always
+RestartSec=5
+# uinput / CAN need privileges on board
+TimeoutStartSec=30
+TimeoutStopSec=15
+KillMode=mixed
+UMask=0027
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target

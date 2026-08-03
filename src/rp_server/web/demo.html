@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>RoboParty · Demo</title>
+<link rel="stylesheet" href="/ui/tokens.css" />
+<link rel="stylesheet" href="/ui/common.css" />
+</head>
+<body>
+<!-- ── Topbar ─────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <h1>RoboParty<span data-i18n="demo.brand">Console</span></h1>
+  </div>
+  <div class="status-row">
+    <button class="tool-btn" id="themeBtn" data-i18n-title="toolbar.theme" title="Toggle Theme" aria-label="Toggle theme">
+      <span class="tool-icon" id="themeIcon">☀️</span>
+    </button>
+    <button class="tool-btn" id="langBtn" data-i18n-title="toolbar.lang" title="Switch language" aria-label="Switch language">
+      <span id="langLabel">EN</span>
+    </button>
+    <span class="pill" id="ver"><span class="dot"></span><span data-i18n="pill.version">v</span> -</span>
+    <span class="pill" id="mode"><span class="dot"></span>Mode -</span>
+    <span class="pill bad" id="wsState"><span class="dot"></span><span data-i18n="pill.not_connected">Disconnected</span></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <h2 data-i18n="demo.hero">Robot Backend Demo</h2>
+    <p data-i18n="demo.hero.sub">No code needed. Click to try: sensors, gamepad, chat, login, AI tools. Same UI on the robot board.</p>
+  </div>
+
+  <div class="grid">
+    <!-- ── Telemetry ────────────────────────────────────── -->
+    <section class="group span4">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.realtime">Live</div>
+        <h3 data-i18n="demo.section.telemetry">Robot Status</h3>
+        <p class="hint" data-i18n="demo.section.telemetry.hint">Battery &amp; attitude auto-refresh (WebSocket push)</p>
+      </div>
+      <div class="group-body">
+        <div class="stats">
+          <div class="stat"><label data-i18n="demo.stat.battery">Battery</label><strong id="bat">&mdash;</strong></div>
+          <div class="stat"><label data-i18n="demo.stat.imu">IMU Temp</label><strong id="imuTemp">&mdash;</strong></div>
+          <div class="stat"><label data-i18n="demo.stat.gz">Angular Vel Z</label><strong id="gz">&mdash;</strong></div>
+          <div class="stat"><label data-i18n="demo.stat.hw">Hardware</label><strong id="hw">&mdash;</strong></div>
+        </div>
+        <canvas id="chart" width="600" height="88"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Gamepad ──────────────────────────────────────── -->
+    <section class="group span4">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.control">Control</div>
+        <h3 data-i18n="demo.section.gamepad">Virtual Gamepad</h3>
+        <p class="hint" data-i18n="demo.section.gamepad.hint">Buttons / sticks &rarr; send to backend (motor control future)</p>
+      </div>
+      <div class="group-body">
+        <div class="pad-keys">
+          <button class="btn" data-btn="x">X</button>
+          <button class="btn" data-btn="y">Y</button>
+          <button class="btn" data-btn="lb">LB</button>
+          <button class="btn" data-btn="a">A</button>
+          <button class="btn" data-btn="b">B</button>
+          <button class="btn" data-btn="rb">RB</button>
+        </div>
+        <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+        <div class="caption" id="joyHint" data-i18n="demo.joy.hint">Drag stick</div>
+      </div>
+    </section>
+
+    <!-- ── AT shortcuts ─────────────────────────────────── -->
+    <section class="group span4">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.command">Commands</div>
+        <h3 data-i18n="demo.section.shortcuts">Quick Query</h3>
+        <p class="hint" data-i18n="demo.section.shortcuts.hint">One-tap: connection, system, policy, motor errors</p>
+      </div>
+      <div class="group-body">
+        <div class="btns">
+          <button class="btn" data-at="AT+CONN?" data-i18n="demo.at.conn">Connection</button>
+          <button class="btn" data-at="AT+SYSINFO?" data-i18n="demo.at.sysinfo">System</button>
+          <button class="btn" data-at="AT+POLICY?" data-i18n="demo.at.policy">Policy</button>
+          <button class="btn" data-at="AT+ERR?" data-i18n="demo.at.error">Motor Errors</button>
+        </div>
+        <div class="field">
+          <input id="atCustom" data-i18n-placeholder="demo.at.custom" placeholder="Advanced: custom AT command" />
+          <button class="btn primary" id="atSend" data-i18n="chat.send">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Console log ──────────────────────────────────── -->
+    <section class="group span6">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.log">Log</div>
+        <h3 data-i18n="demo.section.log">Comm Log</h3>
+        <p class="hint" data-i18n="demo.section.log.hint">Sent commands &amp; received responses</p>
+      </div>
+      <div class="group-body">
+        <div class="log" id="atLog"></div>
+      </div>
+    </section>
+
+    <!-- ── Chat ─────────────────────────────────────────── -->
+    <section class="group span6">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.chat">Chat</div>
+        <h3 data-i18n="demo.section.chat">Chat with LLM</h3>
+        <p class="hint" data-i18n="demo.section.chat.hint">Via AI Gateway (chat-fast)</p>
+      </div>
+      <div class="group-body">
+        <div class="chat" id="chatBox"></div>
+        <div class="field composer">
+          <input id="chatInput" data-i18n-placeholder="demo.chat.placeholder" placeholder="Ask something…" />
+          <button class="btn primary" id="chatSend" data-i18n="chat.send">Send</button>
+        </div>
+        <div class="caption" id="sessionHint" style="text-align:left;margin-top:8px" data-i18n="demo.session.none">Session not started</div>
+      </div>
+    </section>
+
+    <!-- ── Auth ─────────────────────────────────────────── -->
+    <section class="group span6">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.auth">Login</div>
+        <h3 data-i18n="demo.section.auth">QR Login Demo</h3>
+        <p class="hint" data-i18n="demo.section.auth.hint">3 steps: Generate &rarr; Simulate scan &rarr; Get Token</p>
+      </div>
+      <div class="group-body">
+        <div class="steps">
+          <button class="btn primary" id="authQr" data-i18n="demo.auth.qr">① Generate QR</button>
+          <button class="btn" id="authScan" data-i18n="demo.auth.scan">② Simulate scan</button>
+          <button class="btn" id="authPoll" data-i18n="demo.auth.poll">③ Claim Token</button>
+        </div>
+        <div class="auth-out" id="authInfo" data-i18n="demo.auth.none">Not started</div>
+      </div>
+    </section>
+
+    <!-- ── MCP ──────────────────────────────────────────── -->
+    <section class="group span6">
+      <div class="group-head">
+        <div class="eyebrow" data-i18n="demo.eyebrow.mcp">AI Tools</div>
+        <h3 data-i18n="demo.section.mcp">Board MCP</h3>
+        <p class="hint" data-i18n="demo.section.mcp.hint">Let AI query board status (read-only tools)</p>
+      </div>
+      <div class="group-body">
+        <div class="btns" id="mcpBtns" style="margin-bottom:10px"></div>
+        <textarea class="mono-box" id="mcpOut" readonly data-i18n-placeholder="demo.mcp.placeholder" placeholder="Click a tool above to see results…"></textarea>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot" data-i18n="demo.foot">RoboParty RP Server · Demo UI (not production)</p>
+</div>
+
+<script src="/ui/common.js"></script>
+<script src="/ui/theme.js"></script>
+<script src="/ui/i18n.js"></script>
+<script>
+// ══ Toolbar ══
+document.getElementById("themeBtn").onclick = function () {
+  var t = RP.theme.toggle();
+  document.getElementById("themeIcon").textContent = t === "light" ? "\uD83C\uDF19" : "\u2600\uFE0F";
+};
+document.getElementById("langBtn").onclick = function () {
+  RP.i18n.toggleLang();
+  document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "\u4E2D\u6587";
+};
+(function () {
+  document.getElementById("themeIcon").textContent = RP.theme.current() === "light" ? "\uD83C\uDF19" : "\u2600\uFE0F";
+  document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "\u4E2D\u6587";
+  document.addEventListener("rp:themechange", function (e) {
+    document.getElementById("themeIcon").textContent = e.detail === "light" ? "\uD83C\uDF19" : "\u2600\uFE0F";
+  });
+  document.addEventListener("rp:langchange", function () {
+    document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "\u4E2D\u6587";
+  });
+})();
+
+// ══ State ══
+var $ = function (id) { return document.getElementById(id); };
+var logEl = $("atLog");
+var gzHistory = [];
+var ws, btnId = 1, sessionId = null, challengeId = null, token = null;
+
+function log(line) {
+  var t = new Date().toLocaleTimeString();
+  logEl.textContent += "[" + t + "] " + line + "\n";
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  var r = await fetch(path, Object.assign({}, opts, {
+    headers: Object.assign({ "Content-Type": "application/json" }, opts.headers || {}),
+  }));
+  var text = await r.text();
+  var data;
+  try { data = JSON.parse(text); } catch (_) { data = text; }
+  if (!r.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  return data;
+}
+
+// ══ WebSocket ══
+function connectWs() {
+  var proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(proto + "://" + location.host + "/ws");
+  ws.onopen = function () { RP.setPill($("wsState"), RP.i18n.t("nav.connected"), "ok"); log("WS connected"); };
+  ws.onclose = function () { RP.setPill($("wsState"), RP.i18n.t("nav.disconnected"), "bad"); setTimeout(connectWs, 1500); };
+  ws.onerror = function () { log("WS error"); };
+  ws.onmessage = function (ev) {
+    var msg = String(ev.data);
+    if (msg.startsWith("@IMU")) {
+      var p = msg.split(/\s+/);
+      $("imuTemp").textContent = p[11] + " \u00B0C";
+      $("gz").textContent = Number(p[7]).toFixed(4);
+      gzHistory.push(Number(p[7])); if (gzHistory.length > 80) gzHistory.shift();
+      drawChart();
+      return;
+    }
+    if (msg.startsWith("@BAT")) {
+      var pb = msg.split(/\s+/);
+      $("bat").textContent = pb[1] + "V \u00B7 " + pb[3] + "%";
+      return;
+    }
+    log("\u2190 " + msg);
+  };
+}
+
+function sendAt(line) {
+  if (!ws || ws.readyState !== 1) { log("Not connected"); return; }
+  ws.send(line);
+  log("\u2192 " + line);
+}
+
+// ══ Chart ══
+function drawChart() {
+  var c = $("chart"); var ctx = c.getContext("2d");
+  var w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(128,128,128,.2)";
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+  if (gzHistory.length < 2) return;
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  gzHistory.forEach(function (v, i) {
+    var x = i / (gzHistory.length - 1) * w;
+    var y = h/2 - v * 2000;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+// ══ Health ══
+async function refreshStatus() {
+  try {
+    var h = await api("/health");
+    RP.setPill($("ver"), RP.i18n.t("pill.version") + (h.version || "?"));
+    var modeText = h.mock ? RP.i18n.t("pill.mode.mock") : RP.i18n.t("pill.mode.real");
+    RP.setPill($("mode"), modeText, h.mock ? "" : "ok");
+    $("hw").textContent = h.hw_ready ? RP.i18n.t("demo.hw.ready") : RP.i18n.t("demo.hw.not_ready");
+  } catch (e) { $("hw").textContent = RP.i18n.t("demo.hw.error"); }
+}
+
+// ══ Gamepad buttons ══
+document.querySelectorAll("[data-btn]").forEach(function (btn) {
+  var name = btn.dataset.btn;
+  var down = function () { sendAt("AT+BTN=" + name + ",down," + (btnId++)); };
+  var up = function () { sendAt("AT+BTN=" + name + ",up," + (btnId++)); };
+  btn.addEventListener("mousedown", down);
+  btn.addEventListener("mouseup", up);
+  btn.addEventListener("touchstart", function (e) { e.preventDefault(); down(); });
+  btn.addEventListener("touchend", function (e) { e.preventDefault(); up(); });
+});
+
+// ══ AT buttons ══
+document.querySelectorAll("[data-at]").forEach(function (btn) {
+  btn.addEventListener("click", function () { sendAt(btn.dataset.at); });
+});
+$("atSend").onclick = function () { var v = $("atCustom").value.trim(); if (v) sendAt(v); };
+$("atCustom").onkeydown = function (e) { if (e.key === "Enter") $("atSend").click(); };
+
+// ══ Joystick ══
+(function () {
+  var stick = $("stick"), knob = $("knob");
+  var dragging = false, center = 54, max = 48;
+  function setPos(dx, dy) {
+    var r = Math.hypot(dx, dy) || 1;
+    var s = Math.min(1, max / r);
+    dx *= s; dy *= s;
+    knob.style.left = (center + dx) + "px";
+    knob.style.top = (center + dy) + "px";
+    var lx = +(dx / max).toFixed(3);
+    var ly = +(-dy / max).toFixed(3);
+    $("joyHint").textContent = "X " + lx + " \u00B7 Y " + ly;
+    sendAt("AT+JOY=lx," + lx);
+    sendAt("AT+JOY=ly," + ly);
+  }
+  function onMove(clientX, clientY) {
+    var rect = stick.getBoundingClientRect();
+    setPos(clientX - (rect.left + rect.width/2), clientY - (rect.top + rect.height/2));
+  }
+  stick.addEventListener("pointerdown", function (e) { dragging = true; stick.setPointerCapture(e.pointerId); onMove(e.clientX, e.clientY); });
+  stick.addEventListener("pointermove", function (e) { if (dragging) onMove(e.clientX, e.clientY); });
+  stick.addEventListener("pointerup", function () { dragging = false; setPos(0,0); });
+})();
+
+// ══ Chat ══
+function addMsg(role, text) {
+  var row = document.createElement("div");
+  row.className = "msg " + (role === "user" ? "user" : "bot");
+  var b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  row.appendChild(b);
+  $("chatBox").appendChild(row);
+  $("chatBox").scrollTop = $("chatBox").scrollHeight;
+}
+async function sendChat() {
+  var msg = $("chatInput").value.trim();
+  if (!msg) return;
+  $("chatInput").value = "";
+  addMsg("user", msg);
+  try {
+    var body = { message: msg };
+    if (sessionId) body.session_id = sessionId;
+    var res = await api("/chat", { method: "POST", body: JSON.stringify(body) });
+    sessionId = res.session_id;
+    $("sessionHint").textContent = res.mock ? RP.i18n.t("demo.session.mock") : RP.i18n.t("demo.session.live");
+    addMsg("bot", res.reply);
+  } catch (e) { addMsg("bot", "Error: " + e.message); }
+}
+$("chatSend").onclick = sendChat;
+$("chatInput").onkeydown = function (e) { if (e.key === "Enter") sendChat(); };
+
+// ══ Auth ══
+$("authQr").onclick = async function () {
+  try {
+    var res = await api("/auth/qr");
+    challengeId = res.challenge.challenge_id;
+    $("authInfo").textContent = RP.i18n.t("demo.auth.generated") + "\nID: " + challengeId + "\nPoll: " + res.challenge.poll;
+  } catch (e) { $("authInfo").textContent = String(e); }
+};
+$("authScan").onclick = async function () {
+  if (!challengeId) return alert(RP.i18n.t("demo.auth.qr"));
+  try {
+    var res = await api("/auth/scan", { method: "POST", body: JSON.stringify({ challenge_id: challengeId, user_id: "demo_user" }) });
+    $("authInfo").textContent += "\n\n" + RP.i18n.t("demo.auth.result") + res.status + "\n" + RP.i18n.t("demo.auth.user") + res.user_id;
+  } catch (e) { $("authInfo").textContent += "\n" + e; }
+};
+$("authPoll").onclick = async function () {
+  if (!challengeId) return alert(RP.i18n.t("demo.auth.qr"));
+  try {
+    var res = await api("/auth/poll?challenge_id=" + encodeURIComponent(challengeId));
+    token = res.token || null;
+    $("authInfo").textContent += "\n\n" + RP.i18n.t("demo.auth.claim") + res.status + (token ? ("\n" + RP.i18n.t("token") + token.slice(0, 28) + "\u2026") : "");
+  } catch (e) { $("authInfo").textContent += "\n" + e; }
+};
+
+// ══ MCP ══
+var MCP_LABELS = {
+  robot_conn: "demo.mcp.conn",
+  robot_sysinfo: "demo.mcp.sysinfo",
+  robot_errors: "demo.mcp.errors",
+  robot_policy_status: "demo.mcp.policy",
+  robot_status: "demo.mcp.status",
+};
+async function loadMcp() {
+  try {
+    var res = await api("/mcp/tools");
+    var box = $("mcpBtns");
+    box.innerHTML = "";
+    res.tools.forEach(function (t) {
+      var b = document.createElement("button");
+      b.className = "btn";
+      var key = MCP_LABELS[t.name] || t.name;
+      b.textContent = RP.i18n.t(key);
+      b.setAttribute("data-i18n-mcp", key);
+      b.onclick = async function () {
+        try {
+          var out = await api("/mcp/call", { method: "POST", body: JSON.stringify({ name: t.name, arguments: {} }) });
+          $("mcpOut").value = JSON.stringify(out, null, 2);
+        } catch (e) { $("mcpOut").value = String(e); }
+      };
+      box.appendChild(b);
+    });
+  } catch (e) { $("mcpOut").value = String(e); }
+}
+
+// ══ Start ══
+refreshStatus();
+connectWs();
+loadMcp();
+setInterval(refreshStatus, 5000);
+
+// Re-render MCP labels on lang change
+document.addEventListener("rp:langchange", function () {
+  document.querySelectorAll("[data-i18n-mcp]").forEach(function (el) {
+    el.textContent = RP.i18n.t(el.getAttribute("data-i18n-mcp"));
+  });
+});
+</script>
+</body>
+</html>

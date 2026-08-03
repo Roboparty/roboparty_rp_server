@@ -11,6 +11,20 @@ try:
     HAS_EVDEV = True
 except ImportError:
     HAS_EVDEV = False
+    UInput = None  # type: ignore
+    AbsInfo = None  # type: ignore
+
+    class _E:  # minimal stubs so module imports on Windows / CI
+        ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ = range(6)
+        BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST = range(10, 14)
+        BTN_TL, BTN_TR, BTN_TL2, BTN_TR2 = range(14, 18)
+        BTN_THUMBL, BTN_THUMBR = 18, 19
+        BTN_DPAD_UP, BTN_DPAD_DOWN, BTN_DPAD_LEFT, BTN_DPAD_RIGHT = range(20, 24)
+        BTN_START, BTN_SELECT, BTN_MODE = 24, 25, 26
+        BTN_TRIGGER_HAPPY = 100
+        EV_ABS, EV_KEY = 3, 1
+
+    ecodes = _E()  # type: ignore
 
 logger = logging.getLogger("rp_server.joy")
 
@@ -31,12 +45,13 @@ class JoyDriver:
     """Virtual gamepad via Linux uinput."""
 
     def __init__(self):
-        self._ui: Optional[UInput] = None
+        self._ui: Optional[object] = None
         self._axis_state: dict[int, float] = {}
         self._btn_state: dict[int, int] = {}
 
     def init(self) -> bool:
         if not HAS_EVDEV:
+            logger.error("python3-evdev is not installed")
             return False
         try:
             caps = {c: AbsInfo(value=0, min=-32767, max=32767, fuzz=0, flat=0, resolution=0)
@@ -74,7 +89,7 @@ class JoyDriver:
 
     def set_button(self, name: str, state: str):
         code = self._resolve_btn(name)
-        if code is None:
+        if code is None or self._ui is None:
             return
         value = 1 if state.lower() == "down" else 0
         if self._btn_state.get(code) == value:
@@ -88,7 +103,7 @@ class JoyDriver:
 
     def set_axis(self, name: str, value: float):
         code = AXIS_MAP.get(name.lower())
-        if code is None:
+        if code is None or self._ui is None:
             return
         clamped = max(-1.0, min(1.0, float(value)))
         if self._axis_state.get(code) == clamped:
@@ -99,6 +114,23 @@ class JoyDriver:
             self._ui.syn()
         except Exception as exc:
             logger.warning("joy axis failed: %s", exc)
+
+    def reset(self):
+        """Zero all axes and release all pressed buttons."""
+        if self._ui is None:
+            return
+        try:
+            for code in AXIS_MAP.values():
+                if self._axis_state.get(code):
+                    self._ui.write(ecodes.EV_ABS, code, 0)
+                    self._axis_state[code] = 0.0
+            for code, value in self._btn_state.items():
+                if value:
+                    self._ui.write(ecodes.EV_KEY, code, 0)
+                    self._btn_state[code] = 0
+            self._ui.syn()
+        except Exception as exc:
+            logger.warning("joy reset failed: %s", exc)
 
     def _resolve_btn(self, name: str) -> Optional[int]:
         n = name.lower().strip()

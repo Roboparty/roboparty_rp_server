@@ -5,6 +5,8 @@
 
 import asyncio
 import logging
+import math
+import time
 
 from .protocol.at_parser import push_imu, push_bat, push_err
 
@@ -13,14 +15,18 @@ logger = logging.getLogger("rp_server.monitors")
 
 class TelemetryMonitor:
 
-    def __init__(self, imu, bms, motors, config: dict):
+    def __init__(self, imu, bms, motors, config: dict, mock: bool = False):
         self._imu = imu
         self._bms = bms
         self._motors = motors
         self._config = config
+        self._mock = mock
         self.clients: set[asyncio.Queue] = set()
         self._tasks: list[asyncio.Task] = []
         self._running = False
+        self.last_imu: dict | None = None
+        self.last_battery: dict | None = None
+        self.last_errors: list[dict] = []
 
     def add_client(self, q: asyncio.Queue):
         self.clients.add(q)
@@ -55,11 +61,24 @@ class TelemetryMonitor:
             t.cancel()
         self._tasks.clear()
 
+    def _mock_imu(self) -> dict:
+        t = time.time()
+        return {
+            "quat": [1.0, 0.0, 0.0, 0.0],
+            "ang_vel": [0.0, 0.0, math.sin(t) * 0.01],
+            "lin_acc": [0.0, 0.0, 9.8],
+            "temp": 36.5,
+        }
+
+    def _mock_bat(self) -> dict:
+        return {"voltage": 48.2, "current": -1.5, "soc": 87.0, "temp": 32.0}
+
     async def _imu_loop(self, hz: int):
         interval = 1.0 / max(hz, 1)
         while self._running:
-            data = self._imu.read()
+            data = self._mock_imu() if self._mock else self._imu.read()
             if data:
+                self.last_imu = data
                 msg = push_imu(
                     data["quat"][0], data["quat"][1], data["quat"][2], data["quat"][3],
                     data["ang_vel"][0], data["ang_vel"][1], data["ang_vel"][2],
@@ -72,8 +91,9 @@ class TelemetryMonitor:
     async def _battery_loop(self, hz: int):
         interval = 1.0 / max(hz, 1)
         while self._running:
-            data = self._bms.read()
+            data = self._mock_bat() if self._mock else self._bms.read()
             if data:
+                self.last_battery = data
                 msg = push_bat(data["voltage"], data["current"], data["soc"], data["temp"])
                 await self.broadcast(msg)
             await asyncio.sleep(interval)
@@ -81,6 +101,8 @@ class TelemetryMonitor:
     async def _error_loop(self, hz: int):
         interval = 1.0 / max(hz, 1)
         while self._running:
-            for e in self._motors.get_errors():
+            errors = [] if self._mock else self._motors.get_errors()
+            self.last_errors = errors
+            for e in errors:
                 await self.broadcast(push_err(e["id"], e["code"], e["name"]))
             await asyncio.sleep(interval)

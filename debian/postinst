@@ -4,3 +4,5 @@ set -e
 systemctl daemon-reload || true
 systemctl enable rp-server.service || true
 systemctl start rp-server.service || true
+systemctl enable rp-btwifi.service || true
+systemctl start rp-btwifi.service || true

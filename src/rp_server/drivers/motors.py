@@ -39,12 +39,14 @@ class MotorDriver:
 
     def init(self, config: dict) -> bool:
         if not HAS_MOTORS:
+            logger.error("motors_py is not installed")
             return False
         self._motors.clear()
         try:
             mc = config.get("motors", {})
             ids = mc.get("motor_id", [])
             if not ids:
+                logger.error("motor configuration contains no motor_id entries")
                 return False
 
             models = mc.get("motor_model", [0] * len(ids))
@@ -54,6 +56,18 @@ class MotorDriver:
             mtypes = mc.get("motor_type", ["DM"])
             num_per_bus = mc.get("motor_num", [len(ids)])
             master_off = mc.get("master_id_offset", 0)
+
+            # Installed robot.yaml files may use a scalar when all buses share
+            # one interface type. Normalize per-bus fields before indexing.
+            if not isinstance(num_per_bus, (list, tuple)):
+                num_per_bus = [num_per_bus]
+            bus_count = len(num_per_bus)
+            if not isinstance(iface_types, (list, tuple)):
+                iface_types = [iface_types] * bus_count
+            if not isinstance(ifaces, (list, tuple)):
+                ifaces = [ifaces] * bus_count
+            if not isinstance(mtypes, (list, tuple)):
+                mtypes = [mtypes] * bus_count
 
             motor_idx = 0
             global_idx = 0

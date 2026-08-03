@@ -1,0 +1,3 @@
+# Ubuntu Jammy ships websockets 9.1, which passes the removed loop=
+# argument to asyncio.Lock on Python 3.10. Keep the board runtime pinned.
+websockets==10.4

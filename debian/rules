@@ -6,5 +6,14 @@ override_dh_install:
 	dh_install
 	# Python server package (nested)
 	mkdir -p debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server
-	cp -r src/rp_server/*.py src/rp_server/transport src/rp_server/protocol src/rp_server/drivers \
+	cp -r src/rp_server/*.py \
+		src/rp_server/transport src/rp_server/protocol src/rp_server/drivers \
+		src/rp_server/auth src/rp_server/chat src/rp_server/mcp src/rp_server/gamepad \
+		src/rp_server/web \
 		debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server/
+	mkdir -p debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/docs
+	cp -r docs/* debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/docs/ || true
+	mkdir -p debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/scripts
+	cp -r scripts/* debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/scripts/ || true
+	mkdir -p debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/tools/canutils-ndk
+	cp -r tools/canutils-ndk/* debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/tools/canutils-ndk/ || true

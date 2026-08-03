@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RoboParty · Console</title>
+<link rel="stylesheet" href="/ui/tokens.css" />
+<style>
+/* ═══════════════════════════════════════════════════════════
+   Backend Dashboard — single-screen, no scroll
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --font: "Sora", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden;
+  font-family: var(--font);
+  color: var(--text-primary);
+  background: var(--bg-root);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top bar ──────────────────────────────────────────── */
+.topbar {
+  height: 48px; min-height: 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.topbar-logo { font-weight: 800; font-size: 15px; letter-spacing: -.02em; }
+.topbar-logo em { font-style: normal; color: var(--accent); }
+.topbar-pills { display: flex; gap: 6px; }
+.topbar-right { display: flex; align-items: center; gap: 6px; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  background: var(--pill-bg); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-tertiary); }
+.pill.ok { color: var(--success); border-color: var(--success-dim); }
+.pill.ok .dot { background: var(--success); }
+.pill.bad { color: var(--danger); border-color: var(--danger-dim); }
+.pill.bad .dot { background: var(--danger); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.pill.ok .dot { animation: pulse 2s infinite; }
+
+.tool-btn {
+  appearance: none; border: 1px solid var(--border);
+  background: var(--btn-bg); color: var(--text-secondary);
+  border-radius: 999px; min-width: 30px; height: 28px;
+  cursor: pointer; font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 8px; gap: 3px;
+  transition: background .12s, color .12s;
+}
+.tool-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
+/* ── Main grid ───────────────────────────────────────── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-rows: 1fr;
+  height: calc(100vh - 48px);
+  gap: 1px;
+  background: var(--border);
+}
+.col { background: var(--bg-root); overflow: hidden; display: flex; flex-direction: column; }
+.col-left, .col-right { min-width: 280px; }
+@media (max-width: 1000px) {
+  .main { grid-template-columns: 1fr 1fr; }
+  .col-right { display: none; }
+}
+@media (max-width: 700px) {
+  .main { grid-template-columns: 1fr; }
+  .col-left { display: none; }
+}
+
+/* ── Panel (widget container) ─────────────────────────── */
+.panel {
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 10px; margin: 6px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.panel-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-hd h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+.panel-hd .tag { font-size: 10px; color: var(--accent); font-weight: 600; }
+.panel-bd { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 12px; }
+.panel-bd.no-pad { padding: 0; }
+
+/* ── Center top: telemetry stats ─────────────────────── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat-box {
+  background: var(--bg-input); border-radius: 8px; padding: 10px 12px; text-align: center;
+}
+.stat-box .val { font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.stat-box .lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+.stat-box .sub { font-size: 10px; color: var(--text-tertiary); }
+
+/* ── Chart ────────────────────────────────────────────── */
+.chart-wrap { margin-top: 8px; }
+.chart-wrap canvas { width: 100%; height: 80px; display: block; border-radius: 8px; background: var(--bg-input); }
+
+/* ── Buttons ──────────────────────────────────────────── */
+.btn {
+  appearance: none; border: 1px solid var(--border);
+  background: var(--btn-bg); color: var(--text-primary);
+  border-radius: 8px; min-height: 34px; padding: 0 12px;
+  cursor: pointer; font-weight: 600; font-size: 12px;
+  transition: background .12s, border-color .12s;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-focus); background: var(--btn-hover-bg); }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.sm { min-height: 28px; padding: 0 8px; font-size: 11px; border-radius: 6px; }
+.btn-group { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── Input ────────────────────────────────────────────── */
+.input {
+  flex: 1; min-height: 34px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-input); color: var(--text-primary);
+  padding: 0 10px; outline: none; font-size: 12px; font-family: var(--font);
+  transition: border-color .12s;
+}
+.input:focus { border-color: var(--border-focus); }
+.input-row { display: flex; gap: 6px; margin-top: 6px; }
+
+/* ── Gamepad ──────────────────────────────────────────── */
+.pad-btns {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  margin-bottom: 8px;
+}
+.pad-btns .btn { width: 100%; text-align: center; }
+.stick-wrap {
+  width: 130px; height: 130px; margin: 0 auto 0;
+  border-radius: 50%; background: var(--bg-input);
+  box-shadow: inset 0 1px 4px var(--shadow-color);
+  position: relative; touch-action: none;
+}
+.stick-knob {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(180deg, #fff, #d4d4da);
+  box-shadow: 0 2px 6px rgba(0,0,0,.2), inset 0 1px 0 #fff;
+  position: absolute; left: 43px; top: 43px;
+}
+.stick-label { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 4px; }
+
+/* ── Log ──────────────────────────────────────────────── */
+.log-box {
+  flex: 1; font: 11px/1.45 var(--mono); color: var(--code-text);
+  background: var(--code-bg); border-radius: 8px;
+  padding: 8px 10px; white-space: pre-wrap; word-break: break-all;
+  overflow-y: auto;
+}
+
+/* ── Chat ─────────────────────────────────────────────── */
+.chat-box {
+  flex: 1; display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; padding: 2px 0;
+}
+.chat-msg { display: flex; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-bubble {
+  max-width: 82%; padding: 7px 12px; border-radius: 14px;
+  background: var(--bubble-bot-bg); color: var(--text-primary);
+  font-size: 13px; line-height: 1.4; white-space: pre-wrap;
+}
+.chat-msg.user .chat-bubble {
+  background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
+}
+.chat-msg.bot .chat-bubble { border-bottom-left-radius: 4px; }
+
+/* ── Auth ──────────────────────────────────────────────── */
+.auth-out {
+  background: var(--code-bg); color: var(--code-text);
+  border-radius: 6px; padding: 8px; font: 10px/1.4 var(--mono);
+  white-space: pre-wrap; word-break: break-all; min-height: 36px;
+  max-height: 80px; overflow-y: auto; margin-top: 6px;
+}
+
+/* ── MCP ───────────────────────────────────────────────── */
+.mcp-out {
+  flex: 1; width: 100%; border-radius: 6px; border: none; resize: none;
+  padding: 8px; background: var(--code-bg); color: var(--code-text);
+  font: 10px/1.4 var(--mono); min-height: 50px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOP BAR ══════════════════════════════════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-logo">Robo<em>Party</em></span>
+    <div class="topbar-pills">
+      <span class="pill bad" id="wsPill"><span class="dot"></span><span data-i18n="db.ws">未连接</span></span>
+      <span class="pill" id="modePill"><span class="dot"></span><span data-i18n="db.mode">模式</span></span>
+      <span class="pill" id="verPill"><span class="dot"></span>—</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="tool-btn" id="themeBtn" title="主题">☀️</button>
+    <button class="tool-btn" id="langBtn" title="语言">EN</button>
+  </div>
+</header>
+
+<!-- ═══════════ MAIN GRID ════════════════════════════════ -->
+<div class="main">
+
+  <!-- ── LEFT column ──────────────────────────────────── -->
+  <div class="col col-left">
+
+    <!-- Gamepad -->
+    <div class="panel" style="flex:2">
+      <div class="panel-hd"><h3 data-i18n="db.gamepad">虚拟手柄</h3></div>
+      <div class="panel-bd" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div class="pad-btns">
+          <button class="btn sm" data-btn="x">X</button>
+          <button class="btn sm" data-btn="y">Y</button>
+          <button class="btn sm" data-btn="lb">LB</button>
+          <button class="btn sm" data-btn="a">A</button>
+          <button class="btn sm" data-btn="b">B</button>
+          <button class="btn sm" data-btn="rb">RB</button>
+        </div>
+        <div class="stick-wrap" id="stick"><div class="stick-knob" id="knob"></div></div>
+        <div class="stick-label" id="joyHint">拖动摇杆</div>
+      </div>
+    </div>
+
+    <!-- Quick AT -->
+    <div class="panel" style="flex:1">
+      <div class="panel-hd"><h3 data-i18n="db.cmds">快捷指令</h3></div>
+      <div class="panel-bd">
+        <div class="btn-group">
+          <button class="btn sm" data-at="AT+CONN?" data-i18n="db.cmd.conn">连接</button>
+          <button class="btn sm" data-at="AT+SYSINFO?" data-i18n="db.cmd.sys">系统</button>
+          <button class="btn sm" data-at="AT+POLICY?" data-i18n="db.cmd.policy">策略</button>
+          <button class="btn sm" data-at="AT+ERR?" data-i18n="db.cmd.err">错误</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auth -->
+    <div class="panel" style="flex:1">
+      <div class="panel-hd"><h3 data-i18n="db.auth">扫码登录</h3></div>
+      <div class="panel-bd">
+        <div class="btn-group">
+          <button class="btn sm primary" id="authQr" data-i18n="db.auth.qr">生成码</button>
+          <button class="btn sm" id="authScan" data-i18n="db.auth.scan">模拟扫码</button>
+          <button class="btn sm" id="authPoll" data-i18n="db.auth.poll">领Token</button>
+        </div>
+        <div class="auth-out" id="authInfo">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CENTER column ─────────────────────────────────── -->
+  <div class="col" style="flex:1">
+
+    <!-- Telemetry -->
+    <div class="panel" style="flex:1">
+      <div class="panel-hd">
+        <h3 data-i18n="db.telemetry">实时遥测</h3>
+        <span class="tag live-dot" style="animation:pulse 2s infinite">● LIVE</span>
+      </div>
+      <div class="panel-bd">
+        <div class="stats-row">
+          <div class="stat-box"><div class="val" id="bat">—</div><div class="lbl" data-i18n="db.stat.bat">电池</div><div class="sub" id="batSub"></div></div>
+          <div class="stat-box"><div class="val" id="imuTemp">—</div><div class="lbl" data-i18n="db.stat.imu">IMU温度</div><div class="sub"></div></div>
+          <div class="stat-box"><div class="val" id="gz">—</div><div class="lbl" data-i18n="db.stat.gz">角速度Z</div><div class="sub">rad/s</div></div>
+          <div class="stat-box"><div class="val" id="hw">—</div><div class="lbl" data-i18n="db.stat.hw">硬件</div><div class="sub"></div></div>
+        </div>
+        <div class="chart-wrap"><canvas id="chart" width="800" height="80"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="panel" style="flex:2">
+      <div class="panel-hd">
+        <h3 data-i18n="db.chat">大模型对话</h3>
+        <span class="tag" id="sessionHint" data-i18n="db.chat.ready">就绪</span>
+      </div>
+      <div class="panel-bd" style="display:flex;flex-direction:column">
+        <div class="chat-box" id="chatBox"></div>
+        <div class="input-row">
+          <input class="input" id="chatInput" data-i18n-placeholder="db.chat.ph" placeholder="输入消息…" />
+          <button class="btn primary sm" id="chatSend" data-i18n="db.send">发送</button>
+          <button class="btn sm" id="chatClear" data-i18n="db.chat.clear">新会话</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT column ──────────────────────────────────── -->
+  <div class="col col-right">
+
+    <!-- Comm Log -->
+    <div class="panel" style="flex:2">
+      <div class="panel-hd"><h3 data-i18n="db.log">通信日志</h3></div>
+      <div class="panel-bd" style="display:flex;flex-direction:column;padding:8px">
+        <div class="log-box" id="atLog"></div>
+        <div class="input-row">
+          <input class="input" id="atCustom" data-i18n-placeholder="db.at.ph" placeholder="AT指令…" />
+          <button class="btn primary sm" id="atSend">AT</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP -->
+    <div class="panel" style="flex:1">
+      <div class="panel-hd"><h3 data-i18n="db.mcp">板卡MCP</h3></div>
+      <div class="panel-bd" style="display:flex;flex-direction:column">
+        <div class="btn-group" id="mcpBtns"></div>
+        <textarea class="mcp-out" id="mcpOut" readonly data-i18n-placeholder="db.mcp.ph" placeholder="点工具看结果…" style="margin-top:6px"></textarea>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="/ui/common.js"></script>
+<script src="/ui/theme.js"></script>
+<script src="/ui/i18n.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  Dashboard logic
+// ═══════════════════════════════════════════════════════════
+
+// ── Toolbar ─────────────────────────────────────────────
+document.getElementById("themeBtn").onclick = function () {
+  var t = RP.theme.toggle();
+  this.textContent = t === "light" ? "🌙" : "☀️";
+};
+document.getElementById("langBtn").onclick = function () {
+  RP.i18n.toggleLang();
+  this.textContent = RP.i18n.currentLang() === "zh" ? "EN" : "中文";
+};
+(function () {
+  document.getElementById("themeBtn").textContent = RP.theme.current() === "light" ? "🌙" : "☀️";
+  document.getElementById("langLabel") && (document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "中文");
+})();
+
+// ── State ───────────────────────────────────────────────
+var gzHistory = [];
+var ws, btnId = 1, sessionId = null, challengeId = null;
+var $ = function (id) { return document.getElementById(id); };
+
+function log(line) {
+  var el = $("atLog");
+  el.textContent += "[" + new Date().toLocaleTimeString() + "] " + line + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── WebSocket ───────────────────────────────────────────
+function connectWs() {
+  var proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(proto + "://" + location.host + "/ws");
+  ws.onopen = function () {
+    RP.setPill($("wsPill"), RP.i18n.t("nav.connected"), "ok");
+    log("WS open");
+  };
+  ws.onclose = function () {
+    RP.setPill($("wsPill"), RP.i18n.t("nav.disconnected"), "bad");
+    setTimeout(connectWs, 1500);
+  };
+  ws.onerror = function () { log("WS error"); };
+  ws.onmessage = function (ev) {
+    var msg = String(ev.data);
+    if (msg.startsWith("@IMU")) {
+      var p = msg.split(/\s+/);
+      $("imuTemp").textContent = p[11] + " °C";
+      $("gz").textContent = Number(p[7]).toFixed(4);
+      gzHistory.push(Number(p[7])); if (gzHistory.length > 100) gzHistory.shift();
+      drawChart();
+      return;
+    }
+    if (msg.startsWith("@BAT")) {
+      var pb = msg.split(/\s+/);
+      $("bat").textContent = pb[1] + "V";
+      $("batSub").textContent = pb[3] + "%";
+      return;
+    }
+    log("← " + msg);
+  };
+}
+
+function sendAt(line) {
+  if (!ws || ws.readyState !== 1) { log("WS not connected"); return; }
+  ws.send(line); log("→ " + line);
+}
+
+// ── Chart ───────────────────────────────────────────────
+function drawChart() {
+  var c = $("chart"), ctx = c.getContext("2d");
+  var w = c.width, h = c.height, dpr = window.devicePixelRatio || 1;
+  c.width = w * dpr; c.height = h * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = "rgba(128,128,128,.12)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+
+  if (gzHistory.length < 2) return;
+  var accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.lineJoin = "round";
+  ctx.beginPath();
+  gzHistory.forEach(function (v, i) {
+    var x = i / (gzHistory.length - 1) * w;
+    var y = h/2 - v * 1000;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+// ── Health ──────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    var h = await RP.api("/health");
+    RP.setPill($("verPill"), "v" + (h.version || "?"));
+    RP.setPill($("modePill"), h.mock ? RP.i18n.t("full.mode.mock") : RP.i18n.t("full.mode.real"), h.mock ? "" : "ok");
+    $("hw").textContent = h.hw_ready ? RP.i18n.t("full.hw.ready") : RP.i18n.t("full.hw.not");
+  } catch (e) { $("hw").textContent = "err"; }
+}
+
+// ── Gamepad ─────────────────────────────────────────────
+document.querySelectorAll("[data-btn]").forEach(function (btn) {
+  var name = btn.dataset.btn;
+  var down = function () { sendAt("AT+BTN=" + name + ",down," + (btnId++)); };
+  var up = function () { sendAt("AT+BTN=" + name + ",up," + (btnId++)); };
+  btn.addEventListener("mousedown", down);
+  btn.addEventListener("mouseup", up);
+  btn.addEventListener("touchstart", function (e) { e.preventDefault(); down(); });
+  btn.addEventListener("touchend", function (e) { e.preventDefault(); up(); });
+});
+
+document.querySelectorAll("[data-at]").forEach(function (btn) {
+  btn.onclick = function () { sendAt(btn.dataset.at); };
+});
+$("atSend").onclick = function () { var v = $("atCustom").value.trim(); if (v) sendAt(v); };
+$("atCustom").onkeydown = function (e) { if (e.key === "Enter") $("atSend").click(); };
+
+// ── Joystick ────────────────────────────────────────────
+(function () {
+  var stick = $("stick"), knob = $("knob");
+  var dragging = false, center = 43, max = 40;
+  function setPos(dx, dy) {
+    var r = Math.hypot(dx, dy) || 1;
+    var s = Math.min(1, max / r);
+    dx *= s; dy *= s;
+    knob.style.left = (center + dx) + "px";
+    knob.style.top = (center + dy) + "px";
+    var lx = +(dx / max).toFixed(3);
+    var ly = +(-dy / max).toFixed(3);
+    $("joyHint").textContent = "X " + lx + "  Y " + ly;
+    sendAt("AT+JOY=lx," + lx);
+    sendAt("AT+JOY=ly," + ly);
+  }
+  function onMove(cx, cy) {
+    var r = stick.getBoundingClientRect();
+    setPos(cx - (r.left + r.width/2), cy - (r.top + r.height/2));
+  }
+  stick.addEventListener("pointerdown", function (e) { dragging = true; stick.setPointerCapture(e.pointerId); onMove(e.clientX, e.clientY); });
+  stick.addEventListener("pointermove", function (e) { if (dragging) onMove(e.clientX, e.clientY); });
+  stick.addEventListener("pointerup", function () { dragging = false; setPos(0, 0); });
+})();
+
+// ── Chat ────────────────────────────────────────────────
+function addMsg(role, text) {
+  var row = document.createElement("div");
+  row.className = "chat-msg " + role;
+  var b = document.createElement("div");
+  b.className = "chat-bubble";
+  b.textContent = text;
+  row.appendChild(b);
+  $("chatBox").appendChild(row);
+  $("chatBox").scrollTop = $("chatBox").scrollHeight;
+}
+async function sendChat() {
+  var msg = $("chatInput").value.trim();
+  if (!msg) return;
+  $("chatInput").value = "";
+  addMsg("user", msg);
+  try {
+    var body = { message: msg };
+    if (sessionId) body.session_id = sessionId;
+    var res = await RP.api("/chat", { method: "POST", body: JSON.stringify(body) });
+    sessionId = res.session_id;
+    $("sessionHint").textContent = res.mock ? RP.i18n.t("full.chat.mock") : RP.i18n.t("full.chat.live");
+    addMsg("bot", res.reply);
+  } catch (e) { addMsg("bot", "Err: " + e.message); }
+}
+$("chatSend").onclick = sendChat;
+$("chatInput").onkeydown = function (e) { if (e.key === "Enter") sendChat(); };
+$("chatClear").onclick = function () { sessionId = null; $("chatBox").innerHTML = ""; $("sessionHint").textContent = RP.i18n.t("full.chat.cleared"); };
+
+// ── Auth ────────────────────────────────────────────────
+$("authQr").onclick = async function () {
+  try { var r = await RP.api("/auth/qr"); challengeId = r.challenge.challenge_id; $("authInfo").textContent = "ID: " + challengeId; } catch (e) { $("authInfo").textContent = String(e); }
+};
+$("authScan").onclick = async function () {
+  if (!challengeId) return; try { var r = await RP.api("/auth/scan", { method: "POST", body: JSON.stringify({ challenge_id: challengeId, user_id: "demo" }) }); $("authInfo").textContent += "\n" + r.status; } catch (e) {}
+};
+$("authPoll").onclick = async function () {
+  if (!challengeId) return; try { var r = await RP.api("/auth/poll?challenge_id=" + challengeId); $("authInfo").textContent += "\nToken: " + (r.token||"?").slice(0,20)+"…"; } catch (e) {}
+};
+
+// ── MCP ─────────────────────────────────────────────────
+var MCP_KEYS = { robot_conn: "full.mcp.conn", robot_sysinfo: "full.mcp.sys", robot_errors: "full.mcp.err", robot_policy_status: "full.mcp.policy", robot_status: "full.mcp.status" };
+async function loadMcp() {
+  try {
+    var res = await RP.api("/mcp/tools");
+    var box = $("mcpBtns"); box.innerHTML = "";
+    res.tools.forEach(function (t) {
+      var b = document.createElement("button");
+      b.className = "btn sm";
+      var key = MCP_KEYS[t.name];
+      b.textContent = key ? RP.i18n.t(key) : t.name;
+      if (key) b.setAttribute("data-i18n-mcp", key);
+      b.onclick = async function () {
+        try { var out = await RP.api("/mcp/call", { method: "POST", body: JSON.stringify({ name: t.name, arguments: {} }) }); $("mcpOut").value = JSON.stringify(out, null, 2); } catch (e) { $("mcpOut").value = String(e); }
+      };
+      box.appendChild(b);
+    });
+  } catch (e) { $("mcpOut").value = String(e); }
+}
+
+document.addEventListener("rp:langchange", function () {
+  document.querySelectorAll("[data-i18n-mcp]").forEach(function (el) { el.textContent = RP.i18n.t(el.getAttribute("data-i18n-mcp")); });
+});
+
+// ── Start ───────────────────────────────────────────────
+refreshStatus(); connectWs(); loadMcp(); setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

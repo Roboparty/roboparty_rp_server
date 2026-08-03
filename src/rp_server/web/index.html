@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RoboParty · Home</title>
+<link rel="stylesheet" href="/ui/tokens.css" />
+<link rel="stylesheet" href="/ui/common.css" />
+</head>
+<body>
+<div class="shell">
+  <!-- ── Nav ────────────────────────────────────────────── -->
+  <nav class="nav">
+    <div class="nav-brand">Robo<em>Party</em></div>
+    <div class="nav-links">
+      <a class="active" href="/" data-i18n="nav.home">Home</a>
+      <a href="/control" data-i18n="nav.control">Gamepad</a>
+      <a href="/chat-ui" data-i18n="nav.chat">Chat</a>
+    </div>
+    <div class="nav-tools">
+      <!-- Theme toggle -->
+      <button class="tool-btn" id="themeBtn" data-i18n-title="toolbar.theme" title="Toggle Theme" aria-label="Toggle theme">
+        <span class="tool-icon" id="themeIcon">☀️</span>
+      </button>
+      <!-- Lang toggle -->
+      <button class="tool-btn" id="langBtn" data-i18n-title="toolbar.lang" title="Switch language" aria-label="Switch language">
+        <span id="langLabel">EN</span>
+      </button>
+      <!-- WS status -->
+      <span id="wsPill" class="pill bad"><span class="dot"></span><span data-i18n="nav.connecting">Connecting</span></span>
+    </div>
+  </nav>
+
+  <!-- ── Page ───────────────────────────────────────────── -->
+  <main class="page">
+    <h1 class="page-title" data-i18n="index.title">Robot Console</h1>
+    <p class="page-sub" data-i18n="index.sub">Three independent pages: monitor status, control with gamepad, chat with the LLM.</p>
+
+    <!-- Stats row -->
+    <div class="stats" id="stats">
+      <div class="stat"><label data-i18n="index.stat.battery">Battery</label><b id="bat">—</b></div>
+      <div class="stat"><label data-i18n="index.stat.imu">IMU Temp</label><b id="imuTemp">—</b></div>
+      <div class="stat"><label data-i18n="index.stat.mode">Mode</label><b id="mode">—</b></div>
+      <div class="stat"><label data-i18n="index.stat.version">Version</label><b id="ver">—</b></div>
+    </div>
+
+    <!-- Cards -->
+    <div class="cards">
+      <a class="card" href="/control">
+        <span class="tag">Control</span>
+        <h3 data-i18n="index.card.control">Gamepad Control</h3>
+        <p data-i18n="index.card.control.desc">Xbox-style virtual gamepad — buttons and sticks send AT commands.</p>
+      </a>
+      <a class="card" href="/chat-ui">
+        <span class="tag">Chat</span>
+        <h3 data-i18n="index.card.chat">LLM Chat</h3>
+        <p data-i18n="index.card.chat.desc">Dedicated chat page via AI Gateway with persistent sessions.</p>
+      </a>
+      <div class="card">
+        <span class="tag">Status</span>
+        <h3 data-i18n="index.card.status">Live Stream</h3>
+        <p data-i18n="index.card.status.desc">WebSocket-connected — battery &amp; IMU update in real time.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Scripts (order matters: RP base → theme → i18n → page logic) -->
+<script src="/ui/common.js"></script>
+<script src="/ui/theme.js"></script>
+<script src="/ui/i18n.js"></script>
+<script>
+// ── Toolbar handlers ──
+document.getElementById("themeBtn").onclick = function () {
+  const t = RP.theme.toggle();
+  document.getElementById("themeIcon").textContent = t === "light" ? "🌙" : "☀️";
+};
+document.getElementById("langBtn").onclick = function () {
+  RP.i18n.toggleLang();
+  document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "中文";
+};
+
+// ── Sync toolbar icons on init ──
+(function () {
+  document.getElementById("themeIcon").textContent = RP.theme.current() === "light" ? "🌙" : "☀️";
+  document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "中文";
+
+  // listen for external theme/lang changes (e.g. persisted from another tab)
+  document.addEventListener("rp:themechange", function (e) {
+    document.getElementById("themeIcon").textContent = e.detail === "light" ? "🌙" : "☀️";
+  });
+  document.addEventListener("rp:langchange", function () {
+    document.getElementById("langLabel").textContent = RP.i18n.currentLang() === "zh" ? "EN" : "中文";
+  });
+})();
+
+// ── WebSocket ──
+let ws;
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(proto + "://" + location.host + "/ws");
+  ws.onopen = function () {
+    RP.setPill(document.getElementById("wsPill"), RP.i18n.t("nav.connected"), "ok");
+  };
+  ws.onclose = function () {
+    RP.setPill(document.getElementById("wsPill"), RP.i18n.t("nav.disconnected"), "bad");
+    setTimeout(connectWs, 1500);
+  };
+  ws.onmessage = function (ev) {
+    var msg = String(ev.data);
+    if (msg.startsWith("@BAT")) {
+      var p = msg.split(/\s+/);
+      document.getElementById("bat").textContent = p[1] + "V \u00B7 " + p[3] + "%";
+    }
+    if (msg.startsWith("@IMU")) {
+      var p = msg.split(/\s+/);
+      document.getElementById("imuTemp").textContent = p[11] + " \u00B0C";
+    }
+  };
+}
+
+// ── Health poll ──
+async function refresh() {
+  try {
+    var h = await RP.api("/health");
+    document.getElementById("mode").textContent = h.mock
+      ? RP.i18n.t("index.mode.mock")
+      : RP.i18n.t("index.mode.real");
+    document.getElementById("ver").textContent = h.version || "\u2014";
+  } catch (_) {}
+}
+
+connectWs();
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

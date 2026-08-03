@@ -8,7 +8,7 @@ import logging
 
 import psutil
 
-from .at_parser import AtCommand, CmdType, resp_conn, resp_btn, resp_sysinfo, resp_policy, resp_err
+from .at_parser import AtCommand, CmdType, resp_conn, resp_btn, resp_sysinfo, resp_policy, resp_err, resp_reset
 
 logger = logging.getLogger("rp_server.protocol")
 
@@ -57,6 +57,17 @@ class AtHandler:
             elif action == "stop":
                 await self.policy.stop()
                 responses.append(resp_policy(name, "STOPPED"))
+
+        elif cmd.cmd == CmdType.RESET:
+            try:
+                self.joy.reset()
+                self.motors.clear_errors()
+                if self.policy.running:
+                    await self.policy.stop()
+                responses.append(resp_reset("OK"))
+            except Exception as exc:
+                logger.warning("reset failed: %s", exc)
+                responses.append(resp_reset("FAIL"))
 
         elif cmd.cmd == CmdType.ERR_QUERY:
             errors = self.motors.get_errors()

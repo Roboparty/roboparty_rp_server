@@ -3,6 +3,18 @@
 .idea/
 __pycache__/
 *.pyc
+.env
+.env.*
+!.env.example
+config/local.secrets.env
+*.secrets.yaml
+
+# internal docs (AI context / team chat)
+项目说明_给GPT.md
+PROJECT_OVERVIEW.md
+
+# local screenshots / temp
+demo_screenshot.png
 
 # debhelper build outputs
 debian/files

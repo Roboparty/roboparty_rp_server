@@ -21,6 +21,7 @@ class BMSDriver:
 
     def init(self, config: dict) -> bool:
         if not HAS_BMS:
+            logger.error("bms_py is not installed")
             return False
         try:
             bc = config.get("bms", {})

@@ -21,13 +21,20 @@ class IMUDriver:
 
     def init(self, config: dict) -> bool:
         if not HAS_IMU:
+            logger.error("imu_py is not installed")
             return False
         try:
             ic = config.get("imu", {})
             self._imu = imu_py.IMUDriver.create_imu(
                 imu_id=ic.get("imu_id", 8),
-                interface_type=ic.get("interface_type", "serial"),
-                interface=ic.get("interface", "/dev/ttyUSB0"),
+                interface_type=ic.get(
+                    "imu_interface_type",
+                    ic.get("interface_type", "serial"),
+                ),
+                interface=ic.get(
+                    "imu_interface",
+                    ic.get("interface", "/dev/ttyUSB0"),
+                ),
                 imu_type=ic.get("imu_type", "HIPNUC"),
                 baudrate=ic.get("baudrate", 921600),
             )

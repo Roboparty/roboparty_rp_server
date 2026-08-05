@@ -10,7 +10,7 @@ Default port **8765** (WebSocket + REST, same port).
 
 | Role | How |
 |------|-----|
-| Android App (fxl) | WS AT for keys/joystick, receives `@IMU`/`@BAT` |
+| Android App | WS AT for keys/joystick, receives `@IMU`/`@BAT` |
 | Gamepad | SDK/evdev → `scripts/gamepad_bridge.py` → AT |
 | LLM Web UI | `POST /chat` multi-turn chat, can inject robot state |
 | Head display / Web login | Scan QR `/auth/qr` → poll JWT |

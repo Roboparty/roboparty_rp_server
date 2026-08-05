@@ -40,7 +40,6 @@ flowchart TB
   App --> WS
   Pad --> WS
   Web --> REST
-  McpClient --> REST
   WS --> AT
   REST --> AT
   AT --> Drv

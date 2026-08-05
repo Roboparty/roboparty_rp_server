@@ -1,42 +1,43 @@
-# can-utils 静态交叉编译（头部电机 CAN）
+# can-utils Static Cross-Compile (Head Motor CAN)
 
-## 目标
+## Goal
 
-在开发机编出 **aarch64 静态** `cansend` / `candump`，拷到 RK3588 控头部电机。
+Build **aarch64 static** `cansend` / `candump` on dev machine, copy to RK3588 for head motor control.
 
-## 依赖
+## Dependencies
 
-- git、make
-- **NDK 路径**：`ANDROID_NDK_HOME`（Android 场景）
-- 或 **交叉 GCC**：`gcc-aarch64-linux-gnu`（板端 Linux）
+- CMake ≥ 3.14
+- C compiler + static libc
+- **NDK path**: `ANDROID_NDK_HOME` (Android scenario)
+- Or **cross GCC**: `gcc-aarch64-linux-gnu` (on-board Linux)
 
-## 编译
+## Build
 
 ```bash
 cd tools/canutils-ndk
-chmod +x build_static.sh
 
-# RK3588 Linux（推荐）
-./build_static.sh linux-aarch64
+# RK3588 Linux (recommended)
+CC=aarch64-linux-gnu-gcc bash build_static.sh
 
-# 或 Android NDK
-export ANDROID_NDK_HOME=/path/to/ndk
-./build_static.sh ndk
+# Or Android NDK
+ANDROID_NDK_HOME=$HOME/Android/Sdk/ndk/26.3.11579264 bash build_static.sh
 ```
 
-产物：`tools/canutils-ndk/out/bin/{cansend,candump}`
+Output: `tools/canutils-ndk/out/bin/{cansend,candump}`
 
-## 板上验证
+## On-Board Verification
 
 ```bash
-scp out/bin/cansend out/bin/candump root@<rk3588>:/usr/local/bin/
-ip link set can0 up type can bitrate 1000000
-candump can0 &
-cansend can0 123#DEADBEEF
+# Send CAN frame
+./cansend can0 123#DEADBEEF
+
+# Monitor
+./candump can0
 ```
 
-头部电机帧 ID / 数据域以陈宇童 / 常传勇 的 CAN 协议为准；本工具只提供发送与抓包能力。
+Head motor frame IDs and data fields follow the CAN protocol from Chen Yutong / Chang Chuanyong.
+This tool only provides sending and sniffing capability.
 
-## 打包建议
+## Packaging Suggestion
 
-可将 `out/bin/*` 装入 deb 的 `/opt/roboparty/bin/`，在 `debian/install` 中追加一行。
+Copy `out/bin/*` into deb's `/opt/roboparty/bin/`, append a line to `debian/install`.

@@ -1,22 +1,22 @@
-# rp_server 架构与数据流
+# rp_server Architecture & Data Flow
 
-## 三层架构
+## Three-Layer Architecture
 
 ```text
-transport/   WebSocket / 串口 / 蓝牙          ← 可换传输
-protocol/    AT 解析 + AtHandler 分发         ← 核心抽象
-drivers/     motors / imu / bms / joy / policy ← 硬件
+transport/   WebSocket / Serial / Bluetooth          ← swappable transports
+protocol/    AT parsing + AtHandler dispatch         ← core abstraction
+drivers/     motors / imu / bms / joy / policy       ← hardware
 ```
 
-同进程 REST 扩展（不另起端口）：
+In-process REST extensions (same port):
 
-| 模块 | 路径 | 作用 |
-|------|------|------|
-| auth | `/auth/*` | 二维码登录 → JWT |
-| chat | `/chat` | DeepSeek 连续对话 |
-| mcp | `/mcp/*` | 把 AT 能力封成工具 |
+| Module | Path | Purpose |
+|--------|------|---------|
+| auth | `/auth/*` | QR login → JWT |
+| chat | `/chat` | DeepSeek multi-turn chat |
+| mcp | `/mcp/*` | AT capabilities as MCP tools |
 
-## 数据流
+## Data Flow
 
 ```mermaid
 flowchart TB
@@ -57,15 +57,15 @@ flowchart TB
   BMS --> Tel
 ```
 
-## 手柄链路
+## Gamepad Pipeline
 
 ```text
-大疆/G12/evdev → gamepad bridge → AT+BTN/JOY → WS → JoyDriver(uinput) → 推理/电机
+DJI/G12/evdev → gamepad bridge → AT+BTN/JOY → WS → JoyDriver(uinput) → inference/motors
 ```
 
-模拟验证：`python3 scripts/gamepad_bridge.py --mode sim`
+Simulation test: `python3 scripts/gamepad_bridge.py --mode sim`
 
-## MCP 工具
+## MCP Tools
 
-只读默认开：`robot_conn` / `robot_sysinfo` / `robot_errors` / `robot_policy_status` / `robot_status`  
-写操作需 `mcp.readonly: false`：`robot_policy_control` / `robot_button`
+Read-only (default on): `robot_conn` / `robot_sysinfo` / `robot_errors` / `robot_policy_status` / `robot_status`
+Write ops require `mcp.readonly: false`: `robot_policy_control` / `robot_button`

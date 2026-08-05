@@ -1,16 +1,16 @@
 # RoboParty RP Server
 
-RK3588 统一后端。AT 协议核心；WebSocket / 串口 / 蓝牙传输；同端口 REST 提供 chat、扫码登录、MCP。
+Unified backend on RK3588. AT protocol core; WebSocket / serial / Bluetooth transport; same-port REST for chat, QR login, MCP.
 
-完整文档见 [`docs/`](docs/)：
+Full docs in [`docs/`](docs/):
 
-- [架构与数据流](docs/architecture.md)
-- [产品说明](docs/product.md)
-- [部署](docs/deploy.md)
-- [安卓联调清单](docs/android_integration.md)
+- [Architecture & Data Flow](docs/architecture.md)
+- [Product Overview](docs/product.md)
+- [Deployment](docs/deploy.md)
+- [Android Integration](docs/android_integration.md)
 - [canutils NDK](tools/canutils-ndk/README.md)
 
-## 快速启动（开发 / mock）
+## Quick Start (dev / mock)
 
 ```bash
 # Linux / macOS
@@ -23,38 +23,39 @@ python -m rp_server --config config/dev_robot.yaml --mock --port 8765
 python scripts/ws_selftest.py --url http://127.0.0.1:8765
 ```
 
-## 架构
+## Architecture
 
 ```
-transport/   WebSocket / 串口 / 蓝牙
-protocol/    AT 解析 + 分发
+transport/   WebSocket / Serial / Bluetooth
+protocol/    AT parsing + dispatch
 drivers/     motors / imu / bms / joy / policy
-auth/        二维码登录 → JWT
-chat/        DeepSeek 连续对话
-mcp/         板卡工具（HTTP + 可选 stdio）
-gamepad/     大疆/G12/evdev → AT 桥
+auth/        QR login → JWT
+chat/        DeepSeek multi-turn chat
+mcp/         On-board MCP tools (HTTP + optional stdio)
+gamepad/     DJI/G12/evdev → AT bridge
 ```
 
-## REST 一览
+## REST Overview
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/health` | 健康检查 |
-| GET | `/api/status` | 硬件快照 |
-| GET | `/auth/qr` | 创建扫码 challenge |
-| POST | `/auth/scan` | App 扫码确认 |
-| GET | `/auth/poll` | 轮询换 JWT |
-| POST | `/chat` | 多轮对话 |
-| GET/DELETE | `/chat/{id}` | 会话查询/清空 |
-| GET | `/mcp/tools` | MCP 工具列表 |
-| POST | `/mcp/call` | 调用工具 |
-| WS | `/ws` | AT 协议 |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/status` | Hardware snapshot |
+| GET | `/auth/qr` | Create QR challenge |
+| POST | `/auth/scan` | App scan confirm |
+| GET | `/auth/poll` | Poll for JWT |
+| POST | `/chat` | Multi-turn chat |
+| GET/DELETE | `/chat/{id}` | Session query/clear |
+| GET | `/mcp/tools` | MCP tool list |
+| POST | `/mcp/call` | Call tool |
+| WS | `/ws` | AT protocol |
 
-## AT 协议
+## AT Protocol
 
-见原 README 表格；命令：`AT+CONN?` / `AT+BTN` / `AT+JOY` / `AT+SYSINFO?` / `AT+POLICY` / `AT+ERR?`；推送：`@IMU` `@BAT` `@ERR`。
+Commands: `AT+CONN?` / `AT+BTN` / `AT+JOY` / `AT+SYSINFO?` / `AT+POLICY` / `AT+ERR?`
+Pushes: `@IMU` `@BAT` `@ERR`
 
-## 安装（deb）
+## Install (deb)
 
 ```bash
 dpkg-buildpackage -us -uc -b
@@ -62,7 +63,7 @@ sudo dpkg -i ../roboparty-rp-server_*.deb
 systemctl status rp-server
 ```
 
-## 环境变量
+## Environment Variables
 
 `RP_HOST` `RP_PORT` `RP_LOG_LEVEL` `RP_MOCK` `RP_JWT_SECRET` `RP_DEEPSEEK_API_KEY`
 

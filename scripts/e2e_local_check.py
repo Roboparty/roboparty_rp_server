@@ -32,7 +32,7 @@ def main() -> int:
     st, body = get("/health")
     print("health", st, body.decode()[:200])
     st, body = get("/")
-    marker_found = "演示".encode() in body or b"RP Server" in body
+    marker_found = b"demo".encode() in body or b"RP Server" in body
     print("demo", st, "bytes", len(body), "ok" if marker_found else "check")
     with urllib.request.urlopen(BASE + "/auth/qr", timeout=5) as r:
         qr = json.loads(r.read().decode())

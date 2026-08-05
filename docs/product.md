@@ -1,37 +1,36 @@
-# RoboParty RP Server — 产品说明
+# RoboParty RP Server — Product Overview
 
-## 产品是什么
+## What It Is
 
-RK3588 上的统一后端：手柄、安卓 App、头部屏、大模型网页、MCP 客户端都通过它访问机器人。
+Unified backend on RK3588: gamepad, Android App, head display, LLM web UI, and MCP clients all access the robot through this service.
 
-默认端口 **8765**（WebSocket + REST 同端口）。
+Default port **8765** (WebSocket + REST, same port).
 
-## 谁用
+## Who Uses It
 
-| 角色 | 怎么用 |
-|------|--------|
-| 安卓 App（fxl） | WS AT 控键/摇杆，收 `@IMU`/`@BAT` |
-| 手柄 | SDK/evdev → `scripts/gamepad_bridge.py` → AT |
-| 大模型网页 | `POST /chat` 连续对话，可带机器人状态 |
-| 头显/网页登录 | 扫码 `/auth/qr` → poll JWT |
-| AI Agent | `GET /mcp/tools` + `POST /mcp/call` |
+| Role | How |
+|------|-----|
+| Android App (fxl) | WS AT for keys/joystick, receives `@IMU`/`@BAT` |
+| Gamepad | SDK/evdev → `scripts/gamepad_bridge.py` → AT |
+| LLM Web UI | `POST /chat` multi-turn chat, can inject robot state |
+| Head display / Web login | Scan QR `/auth/qr` → poll JWT |
 
-## 功能清单
+## Feature List
 
-1. AT 协议硬件网关（CONN/BTN/JOY/SYSINFO/POLICY/ERR）  
-2. 遥测推送 IMU 100Hz / 电池 1Hz / 错误 10Hz  
-3. Policy（ros2 inference）启停  
-4. DeepSeek 多轮对话（`RP_DEEPSEEK_API_KEY`）  
-5. 二维码登录 JWT  
-6. 板卡 MCP 工具  
-7. mock 模式（无硬件本地开发：`--mock` / `RP_MOCK=1`）
+1. AT protocol hardware gateway (CONN/BTN/JOY/SYSINFO/POLICY/ERR)
+2. Telemetry push: IMU 100Hz / battery 1Hz / errors 10Hz
+3. Policy (ros2 inference) start/stop
+4. DeepSeek multi-turn chat (`RP_DEEPSEEK_API_KEY`)
+5. QR code login with JWT
+6. On-board MCP tools
+7. Mock mode (local dev without hardware: `--mock` / `RP_MOCK=1`)
 
-## 非目标
+## Non-Goals
 
-- 不替代电机底层固件 / BMS 守护进程  
-- 不内置安卓 UI / 手柄官方 SDK 二进制（提供桥接与 stub）  
-- 不在本包编译 NDK 产物（提供 `tools/canutils-ndk` 脚本）
+- Does not replace motor firmware / BMS daemon
+- Does not bundle Android UI / gamepad SDK binaries (provides bridge & stub)
+- Does not compile NDK artifacts in this package (provides `tools/canutils-ndk` scripts)
 
-## 版本
+## Version
 
-当前服务版本字段：`1.1.0`（见 `/health`）。
+Current service version: `1.1.0` (see `/health`).

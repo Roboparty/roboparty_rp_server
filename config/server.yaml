@@ -3,7 +3,7 @@ transports:
   ws: true
   serial: false
   bluetooth: false
-  udp: true               # App → rp_server 手柄数据 UDP 通道
+  udp: true               # App gamepad → rp_server UDP channel
 
 server:
   host: "0.0.0.0"

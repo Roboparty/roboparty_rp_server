@@ -3,7 +3,7 @@
 
 """UDP listener: receive App JSON → translate to AT commands → dispatch to robot.
 
-Data format (matches付兴雷's UDP protocol):
+Data format (App UDP joystick protocol):
 
     {"type":"control", "sequence":1, "timestamp":..., "token":"...",
      "left_stick_x":0.0, "left_stick_y":0.0,

@@ -30,7 +30,7 @@ window.RP = window.RP || {};
     "index.card.control":    { zh: "手柄控制",       en: "Gamepad Control" },
     "index.card.control.desc": { zh: "Xbox 造型虚拟手柄，按键与摇杆直接发 AT 指令。", en: "Xbox-style virtual gamepad — buttons and sticks send AT commands." },
     "index.card.chat":       { zh: "大模型聊天",     en: "LLM Chat" },
-    "index.card.chat.desc":  { zh: "独立对话页，走公司 AI Gateway，支持连续会话。", en: "Dedicated chat page via AI Gateway with persistent sessions." },
+    "index.card.chat.desc":  { zh: "独立对话页，走 AI Gateway，支持连续会话。", en: "Dedicated chat page via AI Gateway with persistent sessions." },
     "index.card.status":     { zh: "实时推流",       en: "Live Stream" },
     "index.card.status.desc":{ zh: "首页已连接 WebSocket，电量与 IMU 自动更新。", en: "WebSocket-connected — battery & IMU update in real time." },
 

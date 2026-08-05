@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: roboparty-rp-server
-Source: https://github.com/wentywenty/roboparty_rp_server
+Source: https://github.com/Roboparty/roboparty_rp_server
 
 Files: *
 Copyright: 2026 wentywenty

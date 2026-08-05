@@ -45,9 +45,9 @@ window.RP = window.RP || {};
 
     /* ── Chat page ───────────────────────────────────── */
     "chat.title":            { zh: "机器人助手",     en: "Robot Assistant" },
-    "chat.gateway":          { zh: "公司 AI Gateway · chat-fast", en: "AI Gateway · chat-fast" },
-    "chat.gateway.mock":     { zh: "模拟回复（未接 Gateway）", en: "Mock reply (no Gateway)" },
-    "chat.gateway.live":     { zh: "连续对话中 · Gateway", en: "Live session · Gateway" },
+    "chat.gateway":          { zh: "DeepSeek · V4 Flash", en: "DeepSeek · V4 Flash" },
+    "chat.gateway.mock":     { zh: "模拟回复（未接 DeepSeek）", en: "Mock reply (no DeepSeek)" },
+    "chat.gateway.live":     { zh: "连续对话中 · DeepSeek", en: "Live session · DeepSeek" },
     "chat.new_session":      { zh: "新会话",         en: "New Session" },
     "chat.new_started":      { zh: "新会话已开始",   en: "New session started" },
     "chat.placeholder":      { zh: "输入消息，回车发送…", en: "Type a message, Enter to send…" },
@@ -86,7 +86,7 @@ window.RP = window.RP || {};
     "demo.section.log.hint": { zh: "发出去的命令、收回来的响应", en: "Sent commands & received responses" },
     "demo.eyebrow.chat":     { zh: "对话",           en: "Chat" },
     "demo.section.chat":     { zh: "和大模型聊天",   en: "Chat with LLM" },
-    "demo.section.chat.hint":{ zh: "走公司 AI Gateway（chat-fast）", en: "Via AI Gateway (chat-fast)" },
+    "demo.section.chat.hint":{ zh: "DeepSeek V4 Flash / V4 Pro", en: "DeepSeek V4 Flash / V4 Pro" },
     "demo.chat.placeholder": { zh: "问点什么…",      en: "Ask something…" },
     "demo.session.none":     { zh: "会话未开始",     en: "Session not started" },
     "demo.session.mock":     { zh: "模拟回复（未接大模型）", en: "Mock reply (no LLM)" },

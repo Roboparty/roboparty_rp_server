@@ -20,10 +20,24 @@ router = APIRouter(tags=["chat"])
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     session_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 def _chat_cfg(request: Request) -> dict:
     return request.app.state.rp.config.get("chat", {})
+
+
+def _resolve_model(cfg: dict, requested: Optional[str]) -> str:
+    default = cfg.get("model", "deepseek-v4-flash")
+    if not requested:
+        return default
+    allowed = [
+        m["id"] if isinstance(m, dict) else str(m)
+        for m in cfg.get("models", [])
+    ]
+    if allowed and requested not in allowed:
+        raise HTTPException(400, f"unsupported model: {requested}")
+    return requested
 
 
 def _build_robot_context(request: Request) -> str:
@@ -70,11 +84,12 @@ async def chat(body: ChatRequest, request: Request, _user=Depends(require_auth))
 
     store.append(session, "user", body.message)
 
+    model = _resolve_model(cfg, body.model)
     api_key = os.environ.get("RP_DEEPSEEK_API_KEY") or cfg.get("api_key", "")
     client = DeepSeekClient(
         api_key=api_key,
-        api_base=cfg.get("api_base", "https://ai-gateway.roboparty.com/v1"),
-        model=cfg.get("model", "chat-fast"),
+        api_base=cfg.get("api_base", "https://api.deepseek.com/v1"),
+        model=model,
     )
 
     if not client.configured:
@@ -95,6 +110,7 @@ async def chat(body: ChatRequest, request: Request, _user=Depends(require_auth))
         "ok": True,
         "session_id": session.session_id,
         "reply": reply,
+        "model": model,
         "mock": not client.configured,
     }
 

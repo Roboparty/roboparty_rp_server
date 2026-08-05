@@ -13,9 +13,9 @@ from typing import Any
 
 logger = logging.getLogger("rp_server.chat.deepseek")
 
-# Company gateway (preferred). Official DeepSeek also works if api_base is set accordingly.
-DEFAULT_API_BASE = "https://ai-gateway.roboparty.com/v1"
-DEFAULT_MODEL = "chat-fast"
+# Official DeepSeek API (OpenAI-compatible). RoboParty gateway also works if api_base is set accordingly.
+DEFAULT_API_BASE = "https://api.deepseek.com/v1"
+DEFAULT_MODEL = "deepseek-v4-flash"
 
 
 class DeepSeekClient:

@@ -6,7 +6,7 @@
   `/opt/roboparty/share/roboto-inference/config/robot/robot.yaml`
 - `motors_py`, `imu_py`, `bms_py` installed by RoboParty hardware package
 - Board has `python3-pip` and can reach Python package sources
-- `.env` contains `RP_DEEPSEEK_API_KEY` and a random `RP_JWT_SECRET`
+- `.env` contains a random `RP_JWT_SECRET`
 
 Production service does NOT auto-fallback to mock. When motors, IMU, or BMS are disconnected,
 the service still starts; `/health` returns `degraded` listing missing items. Reconnect hardware
@@ -55,11 +55,10 @@ Once enabled, the service survives SSH/serial terminal close and auto-starts on 
 | `RP_LOG_LEVEL` | Logging level (`INFO` / `DEBUG`) |
 | `RP_MOCK` | Force mock mode (DO NOT set in production) |
 | `RP_JWT_SECRET` | HS256 signing key |
-| `RP_DEEPSEEK_API_KEY` | LLM API key |
 
 Secrets go in `/etc/rp-server/rp-server.env` — never commit to Git. Production systemd unit
 does NOT set `RP_MOCK`, so real drivers are used; when hardware is missing the service
-continues in degraded state, still serving web UI, login, chat, and MCP.
+continues in degraded state, still serving web UI and login services.
 
 ## Dev Startup
 
@@ -73,13 +72,10 @@ PYTHONPATH=src RP_MOCK=1 python3 -m rp_server --config config/dev_robot.yaml --m
 - `hardware.required`: default `motors/imu/bms`
 - `hardware.fail_startup_if_unavailable`: systemd enforces `true` via CLI
 - `auth.require_token`: recommend `true` for release
-- `mcp.readonly`: keep write ops `true` for release unless explicitly opened
-- `chat.model`: default `chat-fast`
 
 ## Self-Check Checklist
 
 - [ ] WS receives `+CONN` and `@IMU`/`@BAT`
-- [ ] Chat returns a reply (network-dependent; skip if offline)
 - [ ] Web UI still accessible after closing SSH
 - [ ] After board reboot: `systemctl is-active rp-server` → `active`
 - [ ] Production `RP_JWT_SECRET` is set

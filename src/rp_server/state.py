@@ -20,5 +20,4 @@ class AppState:
     at_handler: Any = None
     telemetry: Any = None
     auth_store: Any = None
-    chat_store: Any = None
     mock: bool = False

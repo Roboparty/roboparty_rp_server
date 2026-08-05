@@ -24,9 +24,6 @@ from ..monitors import TelemetryMonitor
 from ..state import AppState
 from ..auth.store import AuthStore
 from ..auth.router import router as auth_router
-from ..chat.session import ChatStore
-from ..chat.router import router as chat_router
-from ..mcp.router import router as mcp_router
 from .serial_server import SerialATServer
 from .bt_server import BTServer
 from .udp_listener import UDPJoyListener
@@ -74,17 +71,13 @@ def create_app(config: dict) -> FastAPI:
     # --- monitors ---
     telemetry = TelemetryMonitor(imu, bms, motors, config, mock=mock)
 
-    # --- auth / chat ---
+    # --- auth ---
     acfg = config.get("auth", {})
     auth_store = AuthStore(
         qr_ttl_sec=int(acfg.get("qr_ttl_sec", 120)),
         jwt_secret=os.environ.get("RP_JWT_SECRET") or acfg.get("jwt_secret", ""),
         jwt_ttl_sec=int(acfg.get("jwt_ttl_sec", 86400)),
     ) if acfg.get("enabled", True) else None
-
-    ccfg = config.get("chat", {})
-    chat_store = ChatStore(max_history=int(ccfg.get("max_history", 20))) \
-        if ccfg.get("enabled", True) else None
 
     rp = AppState(
         config=config,
@@ -98,7 +91,6 @@ def create_app(config: dict) -> FastAPI:
         at_handler=at_handler,
         telemetry=telemetry,
         auth_store=auth_store,
-        chat_store=chat_store,
         mock=mock,
     )
     app.state.rp = rp
@@ -192,10 +184,6 @@ def create_app(config: dict) -> FastAPI:
     async def page_control():
         return _page("control.html")
 
-    @app.get("/chat-ui")
-    async def page_chat():
-        return _page("chat.html")
-
     @app.get("/full")
     async def page_full():
         return _page("full.html")
@@ -247,10 +235,6 @@ def create_app(config: dict) -> FastAPI:
     # Feature routers
     if auth_store is not None:
         app.include_router(auth_router)
-    if chat_store is not None:
-        app.include_router(chat_router)
-    if config.get("mcp", {}).get("enabled", True):
-        app.include_router(mcp_router)
 
     # ------------------------------------------------------------------
     # WebSocket

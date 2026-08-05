@@ -46,25 +46,6 @@ auth:
   # When true, /chat and MCP write tools require Bearer token
   require_token: false
 
-chat:
-  enabled: true
-  # API Key: set RP_DEEPSEEK_API_KEY in .env (gitignored). Never commit keys.
-  api_key: ""
-  api_base: "https://api.deepseek.com/v1"
-  model: "deepseek-v4-flash"   # default: fast / cost-efficient
-  models:
-    - id: "deepseek-v4-flash"
-      label: "V4 Flash"
-    - id: "deepseek-v4-pro"
-      label: "V4 Pro"
-  max_history: 20
-  inject_robot_context: true
-
-mcp:
-  enabled: true
-  # When true, only sysinfo/conn/err/policy_status (no start/stop/btn)
-  readonly: true
-
 gamepad:
   # Default WS target for on-board bridge
   ws_url: "ws://127.0.0.1:8765/ws"

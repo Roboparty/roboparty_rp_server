@@ -13,8 +13,6 @@ In-process REST extensions (same port):
 | Module | Path | Purpose |
 |--------|------|---------|
 | auth | `/auth/*` | QR login → JWT |
-| chat | `/chat` | DeepSeek multi-turn chat |
-| mcp | `/mcp/*` | AT capabilities as MCP tools |
 
 ## Data Flow
 
@@ -22,13 +20,12 @@ In-process REST extensions (same port):
 flowchart TB
   subgraph clients [Clients]
     App[AndroidApp]
-    Web[ChatWeb]
+    Web[WebConsole]
     Pad[GamepadBridge]
-    McpClient[MCP_Client]
   end
   subgraph server [rp_server_8765]
     WS["/ws AT"]
-    REST["/chat /auth /mcp"]
+    REST["/auth"]
     AT[AtHandler]
     Tel[TelemetryMonitor]
     Drv[Drivers]
@@ -64,8 +61,3 @@ DJI/G12/evdev → gamepad bridge → AT+BTN/JOY → WS → JoyDriver(uinput) →
 ```
 
 Simulation test: `python3 scripts/gamepad_bridge.py --mode sim`
-
-## MCP Tools
-
-Read-only (default on): `robot_conn` / `robot_sysinfo` / `robot_errors` / `robot_policy_status` / `robot_status`
-Write ops require `mcp.readonly: false`: `robot_policy_control` / `robot_button`

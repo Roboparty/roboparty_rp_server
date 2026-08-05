@@ -1,6 +1,6 @@
 # RoboParty RP Server
 
-Unified backend on RK3588. AT protocol core; WebSocket / serial / Bluetooth transport; same-port REST for chat, QR login, MCP.
+Unified backend on RK3588. AT protocol core; WebSocket / serial / Bluetooth / UDP transport; same-port REST for QR login.
 
 Full docs in [`docs/`](docs/):
 
@@ -30,8 +30,6 @@ transport/   WebSocket / Serial / Bluetooth
 protocol/    AT parsing + dispatch
 drivers/     motors / imu / bms / joy / policy
 auth/        QR login → JWT
-chat/        DeepSeek multi-turn chat
-mcp/         On-board MCP tools (HTTP + optional stdio)
 gamepad/     DJI/G12/evdev → AT bridge
 ```
 
@@ -44,10 +42,6 @@ gamepad/     DJI/G12/evdev → AT bridge
 | GET | `/auth/qr` | Create QR challenge |
 | POST | `/auth/scan` | App scan confirm |
 | GET | `/auth/poll` | Poll for JWT |
-| POST | `/chat` | Multi-turn chat |
-| GET/DELETE | `/chat/{id}` | Session query/clear |
-| GET | `/mcp/tools` | MCP tool list |
-| POST | `/mcp/call` | Call tool |
 | WS | `/ws` | AT protocol |
 
 ## AT Protocol

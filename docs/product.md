@@ -12,7 +12,6 @@ Default port **8765** (WebSocket + REST, same port).
 |------|-----|
 | Android App | WS AT for keys/joystick, receives `@IMU`/`@BAT` |
 | Gamepad | SDK/evdev → `scripts/gamepad_bridge.py` → AT |
-| LLM Web UI | `POST /chat` multi-turn chat, can inject robot state |
 | Head display / Web login | Scan QR `/auth/qr` → poll JWT |
 
 ## Feature List
@@ -20,10 +19,8 @@ Default port **8765** (WebSocket + REST, same port).
 1. AT protocol hardware gateway (CONN/BTN/JOY/SYSINFO/POLICY/ERR)
 2. Telemetry push: IMU 100Hz / battery 1Hz / errors 10Hz
 3. Policy (ros2 inference) start/stop
-4. DeepSeek multi-turn chat (`RP_DEEPSEEK_API_KEY`)
-5. QR code login with JWT
-6. On-board MCP tools
-7. Mock mode (local dev without hardware: `--mock` / `RP_MOCK=1`)
+4. QR code login with JWT
+5. Mock mode (local dev without hardware: `--mock` / `RP_MOCK=1`)
 
 ## Non-Goals
 

@@ -3,6 +3,7 @@ transports:
   ws: true
   serial: false
   bluetooth: false
+  udp: true               # App → rp_server 手柄数据 UDP 通道
 
 server:
   host: "0.0.0.0"
@@ -22,6 +23,10 @@ serial:
 
 bluetooth:
   channel: 1
+
+udp:
+  host: "0.0.0.0"
+  port: 9000
 
 bms:
   bms_type: "TWS"
@@ -44,10 +49,14 @@ auth:
 chat:
   enabled: true
   # API Key: set RP_DEEPSEEK_API_KEY in .env (gitignored). Never commit keys.
-  # RoboParty AI Gateway — see internal「大模型AI Gateway使用指南」
   api_key: ""
-  api_base: "https://ai-gateway.roboparty.com/v1"
-  model: "chat-fast"   # DeepSeek V4 Flash via gateway; use reasoner for hard tasks
+  api_base: "https://api.deepseek.com/v1"
+  model: "deepseek-v4-flash"   # default: fast / cost-efficient
+  models:
+    - id: "deepseek-v4-flash"
+      label: "V4 Flash"
+    - id: "deepseek-v4-pro"
+      label: "V4 Pro"
   max_history: 20
   inject_robot_context: true
 

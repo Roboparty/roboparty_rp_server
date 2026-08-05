@@ -29,6 +29,7 @@ from ..chat.router import router as chat_router
 from ..mcp.router import router as mcp_router
 from .serial_server import SerialATServer
 from .bt_server import BTServer
+from .udp_listener import UDPJoyListener
 
 _WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -116,6 +117,13 @@ def create_app(config: dict) -> FastAPI:
     bt_srv = BTServer(at_handler, channel=bcfg.get("channel", 1)) \
         if transports_enabled.get("bluetooth") else None
 
+    ucfg = config.get("udp", {})
+    udp_srv = UDPJoyListener(
+        at_handler,
+        host=ucfg.get("host", "0.0.0.0"),
+        port=ucfg.get("port", 9000),
+    ) if transports_enabled.get("udp") else None
+
     # --- lifespan ---
     @app.on_event("startup")
     async def on_startup():
@@ -142,12 +150,16 @@ def create_app(config: dict) -> FastAPI:
             await serial_srv.start()
         if bt_srv:
             await bt_srv.start()
+        if udp_srv:
+            await udp_srv.start()
         logger.info("rp_server ready mock=%s port_cfg=%s", mock, config.get("server", {}))
 
     @app.on_event("shutdown")
     async def on_shutdown():
         if bt_srv:
             await bt_srv.stop()
+        if udp_srv:
+            udp_srv.stop()
         if serial_srv:
             await serial_srv.stop()
         await telemetry.stop()

@@ -168,37 +168,6 @@ html, body {
   overflow-y: auto;
 }
 
-/* ── Chat ─────────────────────────────────────────────── */
-.chat-box {
-  flex: 1; display: flex; flex-direction: column; gap: 6px;
-  overflow-y: auto; padding: 2px 0;
-}
-.chat-msg { display: flex; }
-.chat-msg.user { justify-content: flex-end; }
-.chat-bubble {
-  max-width: 82%; padding: 7px 12px; border-radius: 14px;
-  background: var(--bubble-bot-bg); color: var(--text-primary);
-  font-size: 13px; line-height: 1.4; white-space: pre-wrap;
-}
-.chat-msg.user .chat-bubble {
-  background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
-}
-.chat-msg.bot .chat-bubble { border-bottom-left-radius: 4px; }
-
-/* ── Auth ──────────────────────────────────────────────── */
-.auth-out {
-  background: var(--code-bg); color: var(--code-text);
-  border-radius: 6px; padding: 8px; font: 10px/1.4 var(--mono);
-  white-space: pre-wrap; word-break: break-all; min-height: 36px;
-  max-height: 80px; overflow-y: auto; margin-top: 6px;
-}
-
-/* ── MCP ───────────────────────────────────────────────── */
-.mcp-out {
-  flex: 1; width: 100%; border-radius: 6px; border: none; resize: none;
-  padding: 8px; background: var(--code-bg); color: var(--code-text);
-  font: 10px/1.4 var(--mono); min-height: 50px;
-}
 
 /* ── Scrollbar ────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -296,53 +265,7 @@ html, body {
       </div>
     </div>
 
-    <!-- Chat -->
-    <div class="panel" style="flex:2">
-      <div class="panel-hd">
-        <h3 data-i18n="db.chat">大模型对话</h3>
-        <span class="tag" id="sessionHint" data-i18n="db.chat.ready">就绪</span>
-      </div>
-      <div class="panel-bd" style="display:flex;flex-direction:column">
-        <div class="chat-box" id="chatBox"></div>
-        <div class="input-row">
-          <input class="input" id="chatInput" data-i18n-placeholder="db.chat.ph" placeholder="输入消息…" />
-          <button class="btn primary sm" id="chatSend" data-i18n="db.send">发送</button>
-          <button class="btn sm" id="chatClear" data-i18n="db.chat.clear">新会话</button>
-        </div>
-      </div>
-    </div>
 
-  </div>
-
-  <!-- ── RIGHT column ──────────────────────────────────── -->
-  <div class="col col-right">
-
-    <!-- Comm Log -->
-    <div class="panel" style="flex:2">
-      <div class="panel-hd"><h3 data-i18n="db.log">通信日志</h3></div>
-      <div class="panel-bd" style="display:flex;flex-direction:column;padding:8px">
-        <div class="log-box" id="atLog"></div>
-        <div class="input-row">
-          <input class="input" id="atCustom" data-i18n-placeholder="db.at.ph" placeholder="AT指令…" />
-          <button class="btn primary sm" id="atSend">AT</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MCP -->
-    <div class="panel" style="flex:1">
-      <div class="panel-hd"><h3 data-i18n="db.mcp">板卡MCP</h3></div>
-      <div class="panel-bd" style="display:flex;flex-direction:column">
-        <div class="btn-group" id="mcpBtns"></div>
-        <textarea class="mcp-out" id="mcpOut" readonly data-i18n-placeholder="db.mcp.ph" placeholder="点工具看结果…" style="margin-top:6px"></textarea>
-      </div>
-    </div>
-
-  </div>
-
-</div>
-
-<script src="/ui/common.js"></script>
 <script src="/ui/theme.js"></script>
 <script src="/ui/i18n.js"></script>
 <script>
@@ -366,7 +289,7 @@ document.getElementById("langBtn").onclick = function () {
 
 // ── State ───────────────────────────────────────────────
 var gzHistory = [];
-var ws, btnId = 1, sessionId = null, challengeId = null;
+var ws, btnId = 1, challengeId = null;
 var $ = function (id) { return document.getElementById(id); };
 
 function log(line) {
@@ -488,72 +411,10 @@ $("atCustom").onkeydown = function (e) { if (e.key === "Enter") $("atSend").clic
   stick.addEventListener("pointerup", function () { dragging = false; setPos(0, 0); });
 })();
 
-// ── Chat ────────────────────────────────────────────────
-function addMsg(role, text) {
-  var row = document.createElement("div");
-  row.className = "chat-msg " + role;
-  var b = document.createElement("div");
-  b.className = "chat-bubble";
-  b.textContent = text;
-  row.appendChild(b);
-  $("chatBox").appendChild(row);
-  $("chatBox").scrollTop = $("chatBox").scrollHeight;
-}
-async function sendChat() {
-  var msg = $("chatInput").value.trim();
-  if (!msg) return;
-  $("chatInput").value = "";
-  addMsg("user", msg);
-  try {
-    var body = { message: msg };
-    if (sessionId) body.session_id = sessionId;
-    var res = await RP.api("/chat", { method: "POST", body: JSON.stringify(body) });
-    sessionId = res.session_id;
-    $("sessionHint").textContent = res.mock ? RP.i18n.t("full.chat.mock") : RP.i18n.t("full.chat.live");
-    addMsg("bot", res.reply);
-  } catch (e) { addMsg("bot", "Err: " + e.message); }
-}
-$("chatSend").onclick = sendChat;
-$("chatInput").onkeydown = function (e) { if (e.key === "Enter") sendChat(); };
-$("chatClear").onclick = function () { sessionId = null; $("chatBox").innerHTML = ""; $("sessionHint").textContent = RP.i18n.t("full.chat.cleared"); };
 
-// ── Auth ────────────────────────────────────────────────
-$("authQr").onclick = async function () {
-  try { var r = await RP.api("/auth/qr"); challengeId = r.challenge.challenge_id; $("authInfo").textContent = "ID: " + challengeId; } catch (e) { $("authInfo").textContent = String(e); }
-};
-$("authScan").onclick = async function () {
-  if (!challengeId) return; try { var r = await RP.api("/auth/scan", { method: "POST", body: JSON.stringify({ challenge_id: challengeId, user_id: "demo" }) }); $("authInfo").textContent += "\n" + r.status; } catch (e) {}
-};
-$("authPoll").onclick = async function () {
-  if (!challengeId) return; try { var r = await RP.api("/auth/poll?challenge_id=" + challengeId); $("authInfo").textContent += "\nToken: " + (r.token||"?").slice(0,20)+"…"; } catch (e) {}
-};
-
-// ── MCP ─────────────────────────────────────────────────
-var MCP_KEYS = { robot_conn: "full.mcp.conn", robot_sysinfo: "full.mcp.sys", robot_errors: "full.mcp.err", robot_policy_status: "full.mcp.policy", robot_status: "full.mcp.status" };
-async function loadMcp() {
-  try {
-    var res = await RP.api("/mcp/tools");
-    var box = $("mcpBtns"); box.innerHTML = "";
-    res.tools.forEach(function (t) {
-      var b = document.createElement("button");
-      b.className = "btn sm";
-      var key = MCP_KEYS[t.name];
-      b.textContent = key ? RP.i18n.t(key) : t.name;
-      if (key) b.setAttribute("data-i18n-mcp", key);
-      b.onclick = async function () {
-        try { var out = await RP.api("/mcp/call", { method: "POST", body: JSON.stringify({ name: t.name, arguments: {} }) }); $("mcpOut").value = JSON.stringify(out, null, 2); } catch (e) { $("mcpOut").value = String(e); }
-      };
-      box.appendChild(b);
-    });
-  } catch (e) { $("mcpOut").value = String(e); }
-}
-
-document.addEventListener("rp:langchange", function () {
-  document.querySelectorAll("[data-i18n-mcp]").forEach(function (el) { el.textContent = RP.i18n.t(el.getAttribute("data-i18n-mcp")); });
-});
 
 // ── Start ───────────────────────────────────────────────
-refreshStatus(); connectWs(); loadMcp(); setInterval(refreshStatus, 5000);
+refreshStatus(); connectWs(); setInterval(refreshStatus, 5000);
 </script>
 </body>
 </html>

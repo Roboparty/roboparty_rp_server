@@ -30,7 +30,7 @@
 <div class="wrap">
   <div class="hero">
     <h2 data-i18n="demo.hero">Robot Backend Demo</h2>
-    <p data-i18n="demo.hero.sub">No code needed. Click to try: sensors, gamepad, chat, login, AI tools. Same UI on the robot board.</p>
+    <p data-i18n="demo.hero.sub">No code needed. Click to try: sensors, gamepad, login. Same UI on the robot board.</p>
   </div>
 
   <div class="grid">
@@ -89,7 +89,7 @@
         </div>
         <div class="field">
           <input id="atCustom" data-i18n-placeholder="demo.at.custom" placeholder="Advanced: custom AT command" />
-          <button class="btn primary" id="atSend" data-i18n="chat.send">Send</button>
+          <button class="btn primary" id="atSend" data-i18n="demo.send">Send</button>
         </div>
       </div>
     </section>
@@ -105,22 +105,6 @@
         <div class="log" id="atLog"></div>
       </div>
     </section>
-
-    <!-- ── Chat ─────────────────────────────────────────── -->
-    <section class="group span6">
-      <div class="group-head">
-        <div class="eyebrow" data-i18n="demo.eyebrow.chat">Chat</div>
-        <h3 data-i18n="demo.section.chat">Chat with LLM</h3>
-        <p class="hint" data-i18n="demo.section.chat.hint">Via AI Gateway (chat-fast)</p>
-      </div>
-      <div class="group-body">
-        <div class="chat" id="chatBox"></div>
-        <div class="field composer">
-          <input id="chatInput" data-i18n-placeholder="demo.chat.placeholder" placeholder="Ask something…" />
-          <button class="btn primary" id="chatSend" data-i18n="chat.send">Send</button>
-        </div>
-        <div class="caption" id="sessionHint" style="text-align:left;margin-top:8px" data-i18n="demo.session.none">Session not started</div>
-      </div>
     </section>
 
     <!-- ── Auth ─────────────────────────────────────────── -->
@@ -139,18 +123,6 @@
         <div class="auth-out" id="authInfo" data-i18n="demo.auth.none">Not started</div>
       </div>
     </section>
-
-    <!-- ── MCP ──────────────────────────────────────────── -->
-    <section class="group span6">
-      <div class="group-head">
-        <div class="eyebrow" data-i18n="demo.eyebrow.mcp">AI Tools</div>
-        <h3 data-i18n="demo.section.mcp">Board MCP</h3>
-        <p class="hint" data-i18n="demo.section.mcp.hint">Let AI query board status (read-only tools)</p>
-      </div>
-      <div class="group-body">
-        <div class="btns" id="mcpBtns" style="margin-bottom:10px"></div>
-        <textarea class="mono-box" id="mcpOut" readonly data-i18n-placeholder="demo.mcp.placeholder" placeholder="Click a tool above to see results…"></textarea>
-      </div>
     </section>
   </div>
 
@@ -185,7 +157,7 @@ document.getElementById("langBtn").onclick = function () {
 var $ = function (id) { return document.getElementById(id); };
 var logEl = $("atLog");
 var gzHistory = [];
-var ws, btnId = 1, sessionId = null, challengeId = null, token = null;
+var ws, btnId = 1, challengeId = null, token = null;
 
 function log(line) {
   var t = new Date().toLocaleTimeString();
@@ -310,34 +282,6 @@ $("atCustom").onkeydown = function (e) { if (e.key === "Enter") $("atSend").clic
   stick.addEventListener("pointerup", function () { dragging = false; setPos(0,0); });
 })();
 
-// ══ Chat ══
-function addMsg(role, text) {
-  var row = document.createElement("div");
-  row.className = "msg " + (role === "user" ? "user" : "bot");
-  var b = document.createElement("div");
-  b.className = "bubble";
-  b.textContent = text;
-  row.appendChild(b);
-  $("chatBox").appendChild(row);
-  $("chatBox").scrollTop = $("chatBox").scrollHeight;
-}
-async function sendChat() {
-  var msg = $("chatInput").value.trim();
-  if (!msg) return;
-  $("chatInput").value = "";
-  addMsg("user", msg);
-  try {
-    var body = { message: msg };
-    if (sessionId) body.session_id = sessionId;
-    var res = await api("/chat", { method: "POST", body: JSON.stringify(body) });
-    sessionId = res.session_id;
-    $("sessionHint").textContent = res.mock ? RP.i18n.t("demo.session.mock") : RP.i18n.t("demo.session.live");
-    addMsg("bot", res.reply);
-  } catch (e) { addMsg("bot", "Error: " + e.message); }
-}
-$("chatSend").onclick = sendChat;
-$("chatInput").onkeydown = function (e) { if (e.key === "Enter") sendChat(); };
-
 // ══ Auth ══
 $("authQr").onclick = async function () {
   try {
@@ -362,48 +306,6 @@ $("authPoll").onclick = async function () {
   } catch (e) { $("authInfo").textContent += "\n" + e; }
 };
 
-// ══ MCP ══
-var MCP_LABELS = {
-  robot_conn: "demo.mcp.conn",
-  robot_sysinfo: "demo.mcp.sysinfo",
-  robot_errors: "demo.mcp.errors",
-  robot_policy_status: "demo.mcp.policy",
-  robot_status: "demo.mcp.status",
-};
-async function loadMcp() {
-  try {
-    var res = await api("/mcp/tools");
-    var box = $("mcpBtns");
-    box.innerHTML = "";
-    res.tools.forEach(function (t) {
-      var b = document.createElement("button");
-      b.className = "btn";
-      var key = MCP_LABELS[t.name] || t.name;
-      b.textContent = RP.i18n.t(key);
-      b.setAttribute("data-i18n-mcp", key);
-      b.onclick = async function () {
-        try {
-          var out = await api("/mcp/call", { method: "POST", body: JSON.stringify({ name: t.name, arguments: {} }) });
-          $("mcpOut").value = JSON.stringify(out, null, 2);
-        } catch (e) { $("mcpOut").value = String(e); }
-      };
-      box.appendChild(b);
-    });
-  } catch (e) { $("mcpOut").value = String(e); }
-}
-
-// ══ Start ══
-refreshStatus();
-connectWs();
-loadMcp();
-setInterval(refreshStatus, 5000);
-
-// Re-render MCP labels on lang change
-document.addEventListener("rp:langchange", function () {
-  document.querySelectorAll("[data-i18n-mcp]").forEach(function (el) {
-    el.textContent = RP.i18n.t(el.getAttribute("data-i18n-mcp"));
-  });
-});
 </script>
 </body>
 </html>

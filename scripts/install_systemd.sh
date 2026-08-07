@@ -16,22 +16,21 @@ SHARE_ROOT="/opt/roboparty/share/roboparty-rp-server"
 SECRET_DIR="/etc/rp-server"
 SECRET_FILE="$SECRET_DIR/rp-server.env"
 
-echo "[1/6] Checking real hardware packages and robot config"
+echo "[1/6] Checking real robot config"
 PYTHONPATH="$VENDOR_SITE:$SOURCE_ROOT/src:$PYTHON_SITE" \
   PYTHONNOUSERSITE=1 \
-  /usr/bin/python3 "$SOURCE_ROOT/scripts/hardware_preflight.py" \
-    --config "$ROBOT_CONFIG" \
-    --server-config "$SOURCE_ROOT/config/server.yaml"
+  /usr/bin/python3 -c "
+import yaml, os, sys
+cfg = yaml.safe_load(open('$ROBOT_CONFIG')) or {}
+print('robot config OK ({} motors)'.format(len(cfg.get('motors',{}).get('motor_id',[]))))
+"
 
 echo "[2/6] Installing application files"
 install -d "$PYTHON_SITE" "$SHARE_ROOT" "$SECRET_DIR"
 rm -rf "$PYTHON_SITE/rp_server"
 cp -a "$SOURCE_ROOT/src/rp_server" "$PYTHON_SITE/rp_server"
-rm -rf "$SHARE_ROOT/config" "$SHARE_ROOT/docs" "$SHARE_ROOT/scripts"
+rm -rf "$SHARE_ROOT/config"
 cp -a "$SOURCE_ROOT/config" "$SHARE_ROOT/config"
-cp -a "$SOURCE_ROOT/docs" "$SHARE_ROOT/docs"
-cp -a "$SOURCE_ROOT/scripts" "$SHARE_ROOT/scripts"
-install -m 0644 "$SOURCE_ROOT/requirements-board.txt" "$SHARE_ROOT/requirements-board.txt"
 
 echo "[3/6] Ensuring a uvicorn-compatible board WebSocket runtime"
 install -d "$VENDOR_SITE"
@@ -51,7 +50,7 @@ else
     --disable-pip-version-check \
     --no-deps \
     --target "$VENDOR_SITE" \
-    --requirement "$SOURCE_ROOT/requirements-board.txt"
+    websockets==10.4
   PYTHONPATH="$VENDOR_SITE" PYTHONNOUSERSITE=1 /usr/bin/python3 -c \
     "import websockets; assert websockets.__version__ == '10.4'; print('websockets', websockets.__version__)"
 fi

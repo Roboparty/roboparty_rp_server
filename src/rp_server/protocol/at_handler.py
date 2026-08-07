@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (C) 2026 wentywenty
+# Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+# Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
 
 """AT protocol dispatch — stateless, bridges transport ↔ drivers."""
 

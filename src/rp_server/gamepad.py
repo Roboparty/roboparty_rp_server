@@ -2,7 +2,7 @@
 # Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
 # Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
 
-"""Gamepad → AT bridge (DJI / G12 / Linux evdev)."""
+"""Physical gamepad → AT bridge (Linux evdev)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,16 @@ BTN_NAMES = (
     "du", "dd", "dl", "dr", "start", "select", "mode",
 )
 AXIS_NAMES = ("lx", "ly", "rx", "ry", "lt", "rt")
+
+
+def map_btn(raw: str) -> Optional[str]:
+    """Map raw button name to canonical AT name, or None if unmapped."""
+    return raw.lower() if raw.lower() in BTN_NAMES else None
+
+
+def map_axis(raw: str) -> Optional[str]:
+    """Map raw axis name to canonical AT name, or None if unmapped."""
+    return raw.lower() if raw.lower() in AXIS_NAMES else None
 
 
 class GamepadSource(Protocol):
@@ -59,43 +69,6 @@ class AtWsSink:
         await self._ws.send(line)
 
 
-# Vendor button maps → canonical AT names
-DJI_BTN_MAP = {
-    "A": "a", "B": "b", "X": "x", "Y": "y",
-    "L1": "lb", "R1": "rb", "L2": "ltb", "R2": "rtb",
-    "L3": "ls", "R3": "rs",
-    "UP": "du", "DOWN": "dd", "LEFT": "dl", "RIGHT": "dr",
-    "START": "start", "SELECT": "select", "HOME": "mode",
-}
-DJI_AXIS_MAP = {
-    "LEFT_X": "lx", "LEFT_Y": "ly", "RIGHT_X": "rx", "RIGHT_Y": "ry",
-    "L2": "lt", "R2": "rt",
-}
-
-G12_BTN_MAP = {
-    "BTN_A": "a", "BTN_B": "b", "BTN_X": "x", "BTN_Y": "y",
-    "BTN_L1": "lb", "BTN_R1": "rb", "BTN_L2": "ltb", "BTN_R2": "rtb",
-    "BTN_THUMBL": "ls", "BTN_THUMBR": "rs",
-    "BTN_DPAD_UP": "du", "BTN_DPAD_DOWN": "dd",
-    "BTN_DPAD_LEFT": "dl", "BTN_DPAD_RIGHT": "dr",
-    "BTN_START": "start", "BTN_SELECT": "select", "BTN_MODE": "mode",
-}
-G12_AXIS_MAP = {
-    "ABS_X": "lx", "ABS_Y": "ly", "ABS_RX": "rx", "ABS_RY": "ry",
-    "ABS_Z": "lt", "ABS_RZ": "rt",
-}
-
-
-def map_btn(vendor: str, raw: str) -> Optional[str]:
-    table = DJI_BTN_MAP if vendor == "dji" else G12_BTN_MAP if vendor == "g12" else {}
-    return table.get(raw) or (raw.lower() if raw.lower() in BTN_NAMES else None)
-
-
-def map_axis(vendor: str, raw: str) -> Optional[str]:
-    table = DJI_AXIS_MAP if vendor == "dji" else G12_AXIS_MAP if vendor == "g12" else {}
-    return table.get(raw) or (raw.lower() if raw.lower() in AXIS_NAMES else None)
-
-
 async def run_bridge(source: GamepadSource, sink: AtWsSink):
     await sink.connect()
     try:
@@ -111,12 +84,9 @@ async def run_bridge(source: GamepadSource, sink: AtWsSink):
 class SimulatedSource:
     """Emit a few AT events for bring-up without hardware."""
 
-    def __init__(self, vendor: str = "dji"):
-        self.vendor = vendor
-
     async def events(self):
         seq = [
-            ("btn", map_btn(self.vendor, "A") or "a", "down"),
+            ("btn", "a", "down"),
             ("btn", "a", "up"),
             ("axis", "lx", 0.5),
             ("axis", "lx", 0.0),
@@ -127,7 +97,7 @@ class SimulatedSource:
 
 
 class EvdevSource:
-    """Read a Linux joystick and map to AT names (G12-style codes)."""
+    """Read a Linux joystick and map to AT names."""
 
     def __init__(self, device_path: str = ""):
         self.device_path = device_path
@@ -155,17 +125,16 @@ class EvdevSource:
             ev = await loop.run_in_executor(None, _read)
             if ev.type == ecodes.EV_KEY:
                 key = ecodes.KEY.get(ev.code) or ecodes.BTN.get(ev.code) or f"BTN_{ev.code}"
-                name = map_btn("g12", key) or map_btn("g12", f"BTN_{key}")
+                name = map_btn(key) or map_btn(f"BTN_{key}")
                 if not name:
                     continue
                 state = "down" if ev.value else "up"
                 yield {"type": "btn", "name": name, "value": state}
             elif ev.type == ecodes.EV_ABS:
                 absname = ecodes.ABS.get(ev.code, f"ABS_{ev.code}")
-                axis = map_axis("g12", absname)
+                axis = map_axis(absname)
                 if not axis:
                     continue
-                # normalize typical 0..255 or -32768..32767
                 val = float(ev.value)
                 if abs(val) > 1.5:
                     val = max(-1.0, min(1.0, val / 32767.0))

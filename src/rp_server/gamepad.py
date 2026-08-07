@@ -170,34 +170,3 @@ class EvdevSource:
                 if abs(val) > 1.5:
                     val = max(-1.0, min(1.0, val / 32767.0))
                 yield {"type": "axis", "name": axis, "value": val}
-
-
-class DjiSdkSource:
-    """Stub for DJI RC SDK — replace `_poll` with vendor SDK callbacks."""
-
-    def __init__(self):
-        logger.warning("DjiSdkSource is a stub; wire vendor SDK in _poll()")
-
-    async def _poll(self):
-        # Vendor integration point:
-        # sdk = DJIRemoteController.open()
-        # sdk.on_button(...)
-        raise NotImplementedError(
-            "Integrate DJI RC SDK here, then yield mapped events via map_btn/map_axis('dji', ...)"
-        )
-
-    async def events(self):
-        await self._poll()
-        return
-        yield  # pragma: no cover
-
-
-class G12SdkSource:
-    """Stub for G12 proprietary SDK — prefer EvdevSource when G12 appears as HID."""
-
-    def __init__(self):
-        logger.warning("G12SdkSource stub; use EvdevSource if device is HID")
-
-    async def events(self):
-        raise NotImplementedError("Use EvdevSource for HID G12, or wire proprietary SDK")
-        yield  # pragma: no cover

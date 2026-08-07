@@ -1,4 +1,4 @@
-roboparty-rp-server (1.1.1-1) unstable; urgency=medium
+roboparty-rp-server (1.2.0-1) unstable; urgency=medium
 
   * Add AT+RESET command: clear motor errors, zero gamepad axes and
     buttons, stop running policy. Response: +RESET: OK|FAIL.
@@ -6,7 +6,7 @@ roboparty-rp-server (1.1.1-1) unstable; urgency=medium
   * Add rp_server.btwifi: Bluetooth (RFCOMM/SPP) WiFi provisioning
     service with systemd unit rp-btwifi.service.
 
- -- RoboParty <2321901849@qq.com>  Mon, 27 Jul 2026 14:00:00 +0800
+ -- RoboParty <2321901849@qq.com>  Fri, 7 Aug 2026 14:00:00 +0800
 
 roboparty-rp-server (1.1.0-2) unstable; urgency=medium
 

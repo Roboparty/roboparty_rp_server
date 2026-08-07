@@ -11,6 +11,7 @@ import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+from .. import __version__
 from ..protocol.at_handler import AtHandler
 from ..protocol.at_parser import AtCommand, resp_conn
 from ..drivers.motors import MotorDriver
@@ -32,7 +33,7 @@ def _missing_hardware(status: dict[str, bool], required: tuple[str, ...]) -> lis
 
 
 def create_app(config: dict) -> FastAPI:
-    app = FastAPI(title="RoboParty RP Server", version="1.1.0")
+    app = FastAPI(title="RoboParty RP Server", version=__version__)
 
     mock = bool(config.get("server", {}).get("mock")) or os.environ.get("RP_MOCK", "") in ("1", "true", "TRUE")
     if mock:
@@ -158,7 +159,7 @@ def create_app(config: dict) -> FastAPI:
             "hardware": dict(hardware_status),
             "required_hardware": list(required_hardware),
             "mock": mock,
-            "version": "1.1.0",
+            "version": __version__,
         }
 
     @app.get("/sysinfo")

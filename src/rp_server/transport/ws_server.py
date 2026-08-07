@@ -2,17 +2,14 @@
 # Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
 # Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
 
-"""Transport layer — FastAPI + WebSocket + Serial + Bluetooth + REST modules."""
+"""Transport layer — FastAPI + WebSocket + Serial + Bluetooth + UDP."""
 
 import asyncio
 import logging
 import os
 
-from pathlib import Path
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from ..protocol.at_handler import AtHandler
 from ..protocol.at_parser import AtCommand, resp_conn
@@ -23,13 +20,9 @@ from ..drivers.joy import JoyDriver
 from ..drivers.policy import PolicyDriver
 from ..monitors import TelemetryMonitor
 from ..state import AppState
-from ..auth.store import AuthStore
-from ..auth.router import router as auth_router
 from .serial_server import SerialATServer
 from .bt_server import BTServer
 from .udp_listener import UDPJoyListener
-
-_WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
 logger = logging.getLogger("rp_server.transport")
 
@@ -55,11 +48,10 @@ def create_app(config: dict) -> FastAPI:
         config.get("robot", {}).get("launch_cmd",
                                      "ros2 launch roboparty-inference inference.launch.py"))
     hardware_cfg = config.get("hardware", {})
-    required_hardware = tuple(hardware_cfg.get("required", ("motors", "imu", "bms")))
+    required_hardware = tuple(hardware_cfg.get("required", ("motors", "imu")))
     hardware_status = {
         "motors": mock,
         "imu": mock,
-        "bms": mock,
         "joy": mock,
     }
 
@@ -72,14 +64,6 @@ def create_app(config: dict) -> FastAPI:
     # --- monitors ---
     telemetry = TelemetryMonitor(imu, bms, motors, config, mock=mock)
 
-    # --- auth ---
-    acfg = config.get("auth", {})
-    auth_store = AuthStore(
-        qr_ttl_sec=int(acfg.get("qr_ttl_sec", 120)),
-        jwt_secret=os.environ.get("RP_JWT_SECRET") or acfg.get("jwt_secret", ""),
-        jwt_ttl_sec=int(acfg.get("jwt_ttl_sec", 86400)),
-    ) if acfg.get("enabled", True) else None
-
     rp = AppState(
         config=config,
         hardware_status=hardware_status,
@@ -91,7 +75,6 @@ def create_app(config: dict) -> FastAPI:
         policy=policy,
         at_handler=at_handler,
         telemetry=telemetry,
-        auth_store=auth_store,
         mock=mock,
     )
     app.state.rp = rp
@@ -124,7 +107,6 @@ def create_app(config: dict) -> FastAPI:
             hardware_status.update({
                 "motors": motors.init(config),
                 "imu": imu.init(config),
-                "bms": bms.init(config),
                 "joy": joy.init(),
             })
             missing = _missing_hardware(hardware_status, required_hardware)
@@ -160,38 +142,12 @@ def create_app(config: dict) -> FastAPI:
             await policy.stop()
         if not mock:
             joy.deinit()
-            bms.deinit()
             imu.deinit()
             motors.deinit()
 
     # ------------------------------------------------------------------
-    # REST core + demo UI pages
+    # REST API
     # ------------------------------------------------------------------
-
-    if _WEB_DIR.is_dir():
-        app.mount("/ui", StaticFiles(directory=str(_WEB_DIR)), name="ui")
-
-    def _page(name: str):
-        path = _WEB_DIR / name
-        if path.is_file():
-            return FileResponse(path, media_type="text/html; charset=utf-8")
-        return JSONResponse({"error": f"{name} missing"}, status_code=404)
-
-    @app.get("/")
-    async def page_home():
-        return _page("index.html")
-
-    @app.get("/control")
-    async def page_control():
-        return _page("control.html")
-
-    @app.get("/full")
-    async def page_full():
-        return _page("full.html")
-
-    @app.get("/demo")
-    async def page_demo():
-        return _page("demo.html")
 
     @app.get("/health")
     async def health():
@@ -232,10 +188,6 @@ def create_app(config: dict) -> FastAPI:
             "battery": telemetry.last_battery or (None if mock else bms.read()),
             "imu": telemetry.last_imu or (None if mock else imu.read()),
         })
-
-    # Feature routers
-    if auth_store is not None:
-        app.include_router(auth_router)
 
     # ------------------------------------------------------------------
     # WebSocket

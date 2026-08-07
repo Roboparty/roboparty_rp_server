@@ -20,5 +20,4 @@ class AppState:
     policy: Any = None
     at_handler: Any = None
     telemetry: Any = None
-    auth_store: Any = None
     mock: bool = False

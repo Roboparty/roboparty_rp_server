@@ -14,7 +14,7 @@ server:
 hardware:
   # Normal service stays available in degraded mode when devices are unplugged.
   # Use --require-hardware during hardware acceptance testing.
-  required: ["motors", "imu", "bms"]
+  required: ["motors", "imu"]
   fail_startup_if_unavailable: false
 
 serial:
@@ -28,23 +28,10 @@ udp:
   host: "0.0.0.0"
   port: 9000
 
-bms:
-  bms_type: "TWS"
-  socket_path: "/tmp/bms.sock"
-
 telemetry:
   imu_hz: 100
   battery_hz: 1
   error_hz: 10
-
-auth:
-  enabled: true
-  # HS256 secret — override via RP_JWT_SECRET in production
-  jwt_secret: "roboparty-dev-secret-change-me"
-  jwt_ttl_sec: 86400
-  qr_ttl_sec: 120
-  # When true, /chat and MCP write tools require Bearer token
-  require_token: false
 
 gamepad:
   # Default WS target for on-board bridge

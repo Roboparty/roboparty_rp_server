@@ -26,6 +26,7 @@ class AtHandler:
 
     async def dispatch(self, cmd: AtCommand) -> list[str]:
         """Return a list of response strings to send back."""
+        logger.debug("AT 命令分发: %s (参数: %s)", cmd.cmd.value, cmd.args)
         responses: list[str] = []
 
         if cmd.cmd == CmdType.CONN_QUERY:

@@ -25,3 +25,6 @@ debian/.debhelper/
 *.buildinfo
 *.changes
 *.ddeb
+
+# runtime logs
+logs/

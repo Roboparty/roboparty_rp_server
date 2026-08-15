@@ -7,6 +7,7 @@
 import asyncio
 import logging
 import os
+import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -26,6 +27,7 @@ from .bt_server import BTServer
 from .udp_listener import UDPJoyListener
 
 logger = logging.getLogger("rp_server.transport")
+packet_logger = logging.getLogger("rp_server.packets")
 
 
 def _missing_hardware(status: dict[str, bool], required: tuple[str, ...]) -> list[str]:
@@ -95,10 +97,15 @@ def create_app(config: dict) -> FastAPI:
         if transports_enabled.get("bluetooth") else None
 
     ucfg = config.get("udp", {})
+    auth_cfg = ucfg.get("auth", {})
     udp_srv = UDPJoyListener(
         at_handler,
         host=ucfg.get("host", "0.0.0.0"),
         port=ucfg.get("port", 9000),
+        secret_key=auth_cfg.get("secret_key", ""),
+        token_ttl=auth_cfg.get("token_ttl", 3600),
+        session_timeout=ucfg.get("session_timeout", 10),
+        telemetry=telemetry,
     ) if transports_enabled.get("udp") else None
 
     # --- lifespan ---
@@ -196,6 +203,10 @@ def create_app(config: dict) -> FastAPI:
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
+        client_addr = ws.client.host if ws.client else "unknown"
+        logger.info("WebSocket 连接建立: %s", client_addr)
+        connect_time = time.time()
+
         await ws.accept()
         q: asyncio.Queue = asyncio.Queue(maxsize=256)
         telemetry.add_client(q)
@@ -212,6 +223,8 @@ def create_app(config: dict) -> FastAPI:
         try:
             await ws.send_text(resp_conn(True, True if mock else hardware_ready()))
             async for raw in ws.iter_text():
+                # 记录接收到的数据包
+                packet_logger.info("WS_RECV src=%s data=%s", client_addr, raw.strip())
                 cmd = AtCommand.parse(raw)
                 if cmd is None:
                     continue
@@ -219,11 +232,13 @@ def create_app(config: dict) -> FastAPI:
                     for resp in await at_handler.dispatch(cmd):
                         await ws.send_text(resp)
                 except Exception as exc:
-                    logger.warning("AT error: %s", exc)
+                    logger.warning("AT 命令执行失败: %s (命令: %s)", exc, raw.strip())
         except WebSocketDisconnect:
             pass
         finally:
             send_task.cancel()
             telemetry.remove_client(q)
+            duration = time.time() - connect_time
+            logger.info("WebSocket 连接断开: %s (时长: %.1fs)", client_addr, duration)
 
     return app

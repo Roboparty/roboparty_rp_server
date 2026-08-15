@@ -9,6 +9,7 @@ import os
 import uvicorn
 import yaml
 
+from .log_config import setup_logging
 from .transport.ws_server import create_app
 
 
@@ -89,13 +90,22 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
-    )
-
+    # 加载配置
     _load_dotenv()
     config = _load_config(args.config)
+
+    # 配置日志系统 (命令行参数优先于配置文件)
+    log_cfg = config.get("logging", {})
+    setup_logging(
+        log_level=args.log_level or log_cfg.get("level", "INFO"),
+        log_dir=args.log_dir or log_cfg.get("dir", "logs"),
+        log_file=log_cfg.get("file", "rp_server.log"),
+        packet_log_file=log_cfg.get("packet_file", "packets.log"),
+        max_bytes=log_cfg.get("max_size", 10 * 1024 * 1024),
+        backup_count=log_cfg.get("backup_count", 5),
+        console=True,
+    )
+
     if args.mock:
         config.setdefault("server", {})["mock"] = True
         os.environ["RP_MOCK"] = "1"

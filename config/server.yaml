@@ -26,6 +26,12 @@ hardware:
   required: ["motors", "imu"]
   fail_startup_if_unavailable: false
 
+head:
+  # Two-axis head motors (CAN-FD LRO): motor1 = yaw, motor2 = pitch
+  can_interface: "can0"
+  motor1_id: 1
+  motor2_id: 2
+
 serial:
   port: "/dev/ttyAMA0"
   baudrate: 115200

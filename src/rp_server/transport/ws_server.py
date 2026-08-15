@@ -16,6 +16,7 @@ from .. import __version__
 from ..protocol.at_handler import AtHandler
 from ..protocol.at_parser import AtCommand, resp_conn
 from ..drivers.motors import MotorDriver
+from ..drivers.head import HeadDriver
 from ..drivers.imu import IMUDriver
 from ..drivers.bms import BMSDriver
 from ..drivers.joy import JoyDriver
@@ -47,6 +48,7 @@ def create_app(config: dict) -> FastAPI:
     imu = IMUDriver()
     bms = BMSDriver()
     joy = JoyDriver()
+    head = HeadDriver()
     policy = PolicyDriver(
         config.get("robot", {}).get("launch_cmd",
                                      "ros2 launch roboparty-inference inference.launch.py"))
@@ -56,6 +58,7 @@ def create_app(config: dict) -> FastAPI:
         "motors": mock,
         "imu": mock,
         "joy": mock,
+        "head": mock,
     }
 
     def hardware_ready() -> bool:
@@ -76,6 +79,7 @@ def create_app(config: dict) -> FastAPI:
         bms=bms,
         joy=joy,
         policy=policy,
+        head=head,
         at_handler=at_handler,
         telemetry=telemetry,
         mock=mock,
@@ -106,6 +110,7 @@ def create_app(config: dict) -> FastAPI:
         token_ttl=auth_cfg.get("token_ttl", 3600),
         session_timeout=ucfg.get("session_timeout", 10),
         telemetry=telemetry,
+        head=head,
     ) if transports_enabled.get("udp") else None
 
     # --- lifespan ---
@@ -116,6 +121,7 @@ def create_app(config: dict) -> FastAPI:
                 "motors": motors.init(config),
                 "imu": imu.init(config),
                 "joy": joy.init(),
+                "head": head.init(config),
             })
             missing = _missing_hardware(hardware_status, required_hardware)
             if missing:
@@ -152,6 +158,7 @@ def create_app(config: dict) -> FastAPI:
             joy.deinit()
             imu.deinit()
             motors.deinit()
+            head.deinit()
 
     # ------------------------------------------------------------------
     # REST API

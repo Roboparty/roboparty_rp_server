@@ -66,6 +66,7 @@ class UDPJoyListener:
         token_ttl: int = 3600,
         session_timeout: float = 10.0,
         telemetry: Any = None,
+        head: Any = None,
     ):
         self._handler = at_handler
         self._host = host
@@ -78,6 +79,8 @@ class UDPJoyListener:
         self._sessions = SessionManager(timeout=session_timeout)
         # 遥测数据源
         self._telemetry = telemetry
+        # Head motor driver (head commands are ignored while it is not ready)
+        self._head = head
         # 按钮状态（按会话地址隔离）
         self._btn_state: dict[str, dict[str, bool]] = {}
         self._btn_seq: dict[str, int] = {}
@@ -221,6 +224,8 @@ class UDPJoyListener:
             self._handle_control(pkt, addr)
         elif msg_type == "heartbeat":
             self._handle_heartbeat(pkt, addr)
+        elif msg_type == "head":
+            self._handle_head(pkt, addr)
         elif msg_type == "skill_action":
             self._handle_skill_action(pkt, addr)
         elif not msg_type:
@@ -329,6 +334,29 @@ class UDPJoyListener:
             self._btn_seq[addr_key] = self._btn_seq.get(addr_key, 0) + 1
             state = "down" if pressed else "up"
             self._dispatch(f"AT+BTN={at_name},{state},{self._btn_seq[addr_key]}")
+
+    def _handle_head(self, pkt: dict, addr: tuple) -> None:
+        """Handle head motor command (relative angle deltas, CCW positive)."""
+        # Verify token
+        token = pkt.get("token", "")
+        if token:
+            payload = self._auth.verify_token(token)
+            if not payload:
+                return
+            session = self._sessions.get_session(addr)
+            if not session or session.state != SessionState.CONNECTED:
+                return
+
+        if not self._head or not self._head.ready:
+            logger.warning("head motor driver not ready, ignoring head command")
+            return
+
+        # motor1 → axis 1 (yaw), motor2 → axis 2 (pitch); relative deltas in deg
+        for field, axis in (("motor1", 1), ("motor2", 2)):
+            val = pkt.get(field)
+            if not isinstance(val, (int, float)):
+                continue
+            self._head.move_relative(axis, float(val))
 
     def _handle_heartbeat(self, pkt: dict, addr: tuple) -> None:
         """处理客户端心跳"""

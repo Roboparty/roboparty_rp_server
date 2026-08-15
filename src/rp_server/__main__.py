@@ -82,6 +82,7 @@ def main():
     parser.add_argument("--host", default="")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--log-level", default="info")
+    parser.add_argument("--log-dir", default="", help="日志目录")
     parser.add_argument("--mock", action="store_true", help="run without hardware drivers")
     parser.add_argument(
         "--require-hardware",

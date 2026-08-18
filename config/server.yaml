@@ -7,15 +7,30 @@ transports:
 
 server:
   host: "0.0.0.0"
-  port: 8765
+  port: 9000
   # true: skip hardware pybind, push synthetic telemetry (dev / CI)
-  mock: false
+  mock: true
+
+# 日志配置
+logging:
+  level: "INFO"           # 日志级别: DEBUG/INFO/WARNING/ERROR/CRITICAL
+  dir: "logs"             # 日志文件目录
+  file: "rp_server.log"   # 主日志文件名
+  packet_file: "packets.log"  # 数据包日志文件名
+  max_size: 10485760      # 单个日志文件最大大小 (字节), 10MB
+  backup_count: 5         # 保留的备份文件数量
 
 hardware:
   # Normal service stays available in degraded mode when devices are unplugged.
   # Use --require-hardware during hardware acceptance testing.
   required: ["motors", "imu"]
   fail_startup_if_unavailable: false
+
+head:
+  # Two-axis head motors (CAN-FD LRO): motor1 = yaw, motor2 = pitch
+  can_interface: "can0"
+  motor1_id: 1
+  motor2_id: 2
 
 serial:
   port: "/dev/ttyAMA0"
@@ -25,8 +40,12 @@ bluetooth:
   channel: 1
 
 udp:
-  host: "0.0.0.0"
+  host: "10.43.21.32"
   port: 9000
+  auth:
+    secret_key: "your-pre-shared-secret-key"
+    token_ttl: 3600  # Token有效期（秒）
+  session_timeout: 10  # 会话超时（秒）
 
 telemetry:
   imu_hz: 100
@@ -35,4 +54,4 @@ telemetry:
 
 gamepad:
   # Default WS target for on-board bridge
-  ws_url: "ws://127.0.0.1:8765/ws"
+  ws_url: "ws://127.0.0.1:9000/ws"

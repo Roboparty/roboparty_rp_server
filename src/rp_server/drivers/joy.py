@@ -59,14 +59,14 @@ class JoyDriver:
                     for c in AXIS_MAP.values()}
             btn_codes = list(BTN_MAP.values()) + [_BTN_NUM_BASE + i + 1 for i in range(16)]
             self._ui = UInput(
-                events={ecodes.EV_ABS: list(caps.keys()), ecodes.EV_KEY: btn_codes},
+                events={ecodes.EV_ABS: [(c, caps[c]) for c in caps], ecodes.EV_KEY: btn_codes},
                 name="rp-virtual-joy", vendor=0x1209, product=0x0001, version=0x0001,
             )
             for c in AXIS_MAP.values():
                 self._ui.write(ecodes.EV_ABS, c, 0)
                 self._axis_state[c] = 0.0
             self._ui.syn()
-            logger.info("virtual joystick: %s", self._ui.device.path)
+            logger.info("\033[1;32mvirtual joystick: %s\033[0m", self._ui.device.path)
             return True
         except Exception as exc:
             logger.error("uinput failed: %s", exc)

@@ -9,7 +9,7 @@ server:
   host: "0.0.0.0"
   port: 9000
   # true: skip hardware pybind, push synthetic telemetry (dev / CI)
-  mock: true
+  mock: false
 
 # 日志配置
 logging:
@@ -40,7 +40,7 @@ bluetooth:
   channel: 1
 
 udp:
-  host: "10.43.21.32"
+  host: "0.0.0.0"
   port: 9000
   auth:
     secret_key: "your-pre-shared-secret-key"

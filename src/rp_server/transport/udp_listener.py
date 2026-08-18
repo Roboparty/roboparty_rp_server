@@ -425,8 +425,14 @@ class UDPJoyListener:
         if cmd is None:
             return
         try:
-            # Dispatch synchronously — all AT handlers are synchronous
-            for _ in self._handler.dispatch(cmd):
-                pass  # UDP doesn't need to send responses back
+            # dispatch() is async — schedule it on the event loop
+            loop = asyncio.get_event_loop()
+            loop.create_task(self._dispatch_async(cmd))
         except Exception:
             logger.debug("AT dispatch failed for %r", raw, exc_info=True)
+
+    async def _dispatch_async(self, cmd) -> None:
+        try:
+            await self._handler.dispatch(cmd)  # dispatch() returns list[str]
+        except Exception:
+            logger.debug("AT dispatch failed", exc_info=True)

@@ -1,3 +1,12 @@
+roboparty-rp-server (1.3.0-1) unstable; urgency=medium
+
+  * Remove the dead rp_server.gamepad package (referenced a missing bridge module).
+  * Merge docs/logging.md into README.md and drop the standalone docs file.
+  * Fix README deployment instructions (deb install instead of the removed
+    install_systemd.sh script).
+
+ -- RoboParty <2321901849@qq.com>  Tue, 18 Aug 2026 16:30:00 +0800
+
 roboparty-rp-server (1.2.0-1) unstable; urgency=medium
 
   * Add AT+RESET command: clear motor errors, zero gamepad axes and

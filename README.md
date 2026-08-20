@@ -55,8 +55,8 @@ App ──WS:8765──────┼──→ AtHandler ──→ drivers ─�
 
 | Format | Rate | Content |
 |--------|------|---------|
-| `@IMU w x y z gx gy gz ax ay az temp` | 100Hz | Attitude |
-| `@BAT V A SoC temp` | 1Hz | Battery |
+| `@IMU w x y z gx gy gz ax ay az temp` | 50Hz | Attitude |
+| `@BAT V A SoC temp` | 50Hz | Battery |
 | `@ERR id code name` | 10Hz | Motor errors |
 
 ---

@@ -57,6 +57,7 @@ def create_app(config: dict) -> FastAPI:
     hardware_status = {
         "motors": mock,
         "imu": mock,
+        "bms": mock,
         "joy": mock,
         "head": mock,
     }
@@ -120,6 +121,7 @@ def create_app(config: dict) -> FastAPI:
             hardware_status.update({
                 "motors": motors.init(config),
                 "imu": imu.init(config),
+                "bms": bms.init(config),
                 "joy": joy.init(),
                 "head": head.init(config),
             })
@@ -157,6 +159,7 @@ def create_app(config: dict) -> FastAPI:
         if not mock:
             joy.deinit()
             imu.deinit()
+            bms.deinit()
             motors.deinit()
             head.deinit()
 

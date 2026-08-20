@@ -48,8 +48,9 @@ udp:
   session_timeout: 10  # 会话超时（秒）
 
 telemetry:
-  imu_hz: 100
-  battery_hz: 1
+  imu_hz: 50
+  battery_hz: 50
+  motor_hz: 1
   error_hz: 10
 
 gamepad:

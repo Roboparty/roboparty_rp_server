@@ -185,11 +185,24 @@ class UDPJoyListener:
 
     async def _telemetry_loop(self, addr: tuple, addr_key: str) -> None:
         """定期发送遥测数据给已连接客户端"""
+        last_motor_send = 0.0
         try:
             while True:
-                await asyncio.sleep(1)  # 每秒发送一次
+                await asyncio.sleep(0.02)
                 if not self._telemetry:
                     continue
+
+                # 向手柄 App 发送 UDP IMU JSON，与 WebSocket 的 @IMU 广播相互独立
+                imu = self._telemetry.last_imu
+                if imu:
+                    self._send_json({
+                        "type": "imu",
+                        "timestamp": int(time.time() * 1000),
+                        "quat": imu["quat"],
+                        "ang_vel": imu["ang_vel"],
+                        "lin_acc": imu["lin_acc"],
+                        "temp": imu["temp"],
+                    }, addr)
 
                 # 发送电池数据
                 battery = self._telemetry.last_battery
@@ -201,6 +214,24 @@ class UDPJoyListener:
                         "soc": battery["soc"],
                         "temp": battery["temp"],
                     }, addr)
+
+                now = time.monotonic()
+                if now - last_motor_send >= 1.0:
+                    motors = getattr(self._telemetry, "last_motors", None)
+                    if motors is not None:
+                        self._send_json({
+                            "type": "motors",
+                            "timestamp": int(time.time() * 1000),
+                            "id": [motor["id"] for motor in motors],
+                            "position": [motor["position"] for motor in motors],
+                            "speed": [motor["speed"] for motor in motors],
+                            "torque": [motor["torque"] for motor in motors],
+                            "temperature": [motor["temperature"] for motor in motors],
+                            "error": [motor["error"] for motor in motors],
+                            "mode": [motor["mode"] for motor in motors],
+                            "response_count": [motor["response_count"] for motor in motors],
+                        }, addr)
+                    last_motor_send = now
         except asyncio.CancelledError:
             pass
         except Exception:

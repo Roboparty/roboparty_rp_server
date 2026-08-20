@@ -27,6 +27,7 @@ class TelemetryMonitor:
         self._running = False
         self.last_imu: dict | None = None
         self.last_battery: dict | None = None
+        self.last_motors: list[dict] | None = None
         self.last_errors: list[dict] = []
 
     def add_client(self, q: asyncio.Queue):
@@ -51,8 +52,9 @@ class TelemetryMonitor:
         self._running = True
         tcfg = self._config.get("telemetry", {})
         self._tasks = [
-            asyncio.create_task(self._imu_loop(tcfg.get("imu_hz", 100))),
-            asyncio.create_task(self._battery_loop(tcfg.get("battery_hz", 1))),
+            asyncio.create_task(self._imu_loop(tcfg.get("imu_hz", 50))),
+            asyncio.create_task(self._battery_loop(tcfg.get("battery_hz", 50))),
+            asyncio.create_task(self._motor_loop(tcfg.get("motor_hz", 1))),
             asyncio.create_task(self._error_loop(tcfg.get("error_hz", 10))),
         ]
 
@@ -75,6 +77,7 @@ class TelemetryMonitor:
         return {"voltage": 48.2, "current": -1.5, "soc": 87.0, "temp": 32.0}
 
     async def _imu_loop(self, hz: int):
+        # 按配置频率读取 IMU，并通过 WebSocket 广播 @IMU 文本数据
         interval = 1.0 / max(hz, 1)
         while self._running:
             data = self._mock_imu() if self._mock else self._imu.read()
@@ -97,6 +100,12 @@ class TelemetryMonitor:
                 self.last_battery = data
                 msg = push_bat(data["voltage"], data["current"], data["soc"], data["temp"])
                 await self.broadcast(msg)
+            await asyncio.sleep(interval)
+
+    async def _motor_loop(self, hz: int):
+        interval = 1.0 / max(hz, 1)
+        while self._running:
+            self.last_motors = [] if self._mock else self._motors.get_states()
             await asyncio.sleep(interval)
 
     async def _error_loop(self, hz: int):

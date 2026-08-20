@@ -5,6 +5,7 @@
 """pybind → bms_py"""
 
 import logging
+import time
 from typing import Optional
 
 try:
@@ -30,6 +31,9 @@ class BMSDriver:
                 bc.get("bms_type", "TWS"),
                 bc.get("socket_path", "/tmp/bms.sock"),
             )
+            deadline = time.monotonic() + 2.0
+            while not self._bms.is_connected() and time.monotonic() < deadline:
+                time.sleep(0.1)
             if not self._bms.is_connected():
                 logger.warning("BMS daemon not reachable")
                 self._bms = None
@@ -51,10 +55,13 @@ class BMSDriver:
         if not self._bms:
             return None
         try:
+            soc = float(self._bms.get_percentage())
+            if 0.0 <= soc <= 1.0:
+                soc *= 100.0
             return {
                 "voltage": float(self._bms.get_voltage()),
                 "current": float(self._bms.get_current()),
-                "soc": float(self._bms.get_percentage()),
+                "soc": soc,
                 "temp": float(self._bms.get_temperature()),
                 "capacity": float(self._bms.get_capacity()),
                 "soh": float(self._bms.get_soh()),

@@ -52,6 +52,8 @@ _BTN_MAP: dict[str, str] = {
 
 # Dead zone: joystick values within ±DEAD_ZONE are ignored
 DEAD_ZONE = 0.01
+STOP_ACK_INTERVAL = 0.02
+STOP_SCRIPT = "/home/orangepi/roboparty_rp_server/stop_robot.sh"
 
 
 class UDPJoyListener:
@@ -89,6 +91,9 @@ class UDPJoyListener:
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._telemetry_tasks: dict[str, asyncio.Task] = {}  # addr_key → task
+        self._stop_ack_tasks: dict[str, asyncio.Task] = {}
+        self._software_stop_task: Optional[asyncio.Task] = None
+        self._stop_latched = False
 
     # ------------------------------------------------------------------
     # Connection protocol (asyncio Datagram)
@@ -140,6 +145,9 @@ class UDPJoyListener:
         for task in self._telemetry_tasks.values():
             task.cancel()
         self._telemetry_tasks.clear()
+        for task in self._stop_ack_tasks.values():
+            task.cancel()
+        self._stop_ack_tasks.clear()
         if self._transport:
             self._transport.close()
             self._transport = None
@@ -220,6 +228,8 @@ class UDPJoyListener:
             self._handle_auth_request(pkt, addr)
         elif msg_type == "challenge_response":
             self._handle_challenge_response(pkt, addr)
+        elif msg_type == "stop":
+            self._handle_stop(pkt, addr)
         elif msg_type == "control":
             self._handle_control(pkt, addr)
         elif msg_type == "heartbeat":
@@ -291,8 +301,78 @@ class UDPJoyListener:
                 "reason": "签名验证失败",
             }, addr)
 
+    def _handle_stop(self, pkt: dict, addr: tuple) -> None:
+        """Latch software stop and repeat the acknowledgment until confirmed."""
+        addr_key = f"{addr[0]}:{addr[1]}"
+        status = pkt.get("status", "")
+
+        if status == "received":
+            task = self._stop_ack_tasks.pop(addr_key, None)
+            if task:
+                task.cancel()
+            logger.info("software stop acknowledgment confirmed by %s", addr_key)
+            return
+
+        if status:
+            logger.debug("UDP: ignoring invalid stop status %r from %s", status, addr_key)
+            return
+
+        if not self._stop_latched:
+            self._stop_latched = True
+            joy = getattr(self._handler, "joy", None)
+            if joy is not None:
+                joy.reset()
+            self._software_stop_task = asyncio.create_task(self._run_software_stop())
+            logger.warning("software stop latched by %s", addr_key)
+
+        task = self._stop_ack_tasks.get(addr_key)
+        if task is None or task.done():
+            self._stop_ack_tasks[addr_key] = asyncio.create_task(
+                self._repeat_stop_ack(addr, addr_key)
+            )
+
+    async def _repeat_stop_ack(self, addr: tuple, addr_key: str) -> None:
+        try:
+            while True:
+                self._send_json({"type": "stop", "status": "accepted"}, addr)
+                await asyncio.sleep(STOP_ACK_INTERVAL)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            current = asyncio.current_task()
+            if self._stop_ack_tasks.get(addr_key) is current:
+                self._stop_ack_tasks.pop(addr_key, None)
+
+    async def _run_software_stop(self) -> None:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "/bin/bash",
+                STOP_SCRIPT,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                logger.warning(
+                    "software stop script finished: %s",
+                    stdout.decode(errors="replace").strip(),
+                )
+            else:
+                logger.error(
+                    "software stop script failed rc=%d stderr=%s",
+                    proc.returncode,
+                    stderr.decode(errors="replace").strip(),
+                )
+        except Exception:
+            logger.exception("failed to execute software stop script")
+        finally:
+            self._software_stop_task = None
+
     def _handle_control(self, pkt: dict, addr: tuple) -> None:
         """处理控制指令"""
+        if self._stop_latched:
+            return
+
         # 验证 Token
         token = pkt.get("token", "")
         if token:
@@ -337,6 +417,9 @@ class UDPJoyListener:
 
     def _handle_head(self, pkt: dict, addr: tuple) -> None:
         """Handle head motor command (relative angle deltas, CCW positive)."""
+        if self._stop_latched:
+            return
+
         # Verify token
         token = pkt.get("token", "")
         if token:
@@ -370,6 +453,9 @@ class UDPJoyListener:
 
     def _handle_skill_action(self, pkt: dict, addr: tuple) -> None:
         """处理技能动作请求"""
+        if self._stop_latched:
+            return
+
         # 验证 Token
         token = pkt.get("token", "")
         if not token:

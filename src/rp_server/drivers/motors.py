@@ -130,6 +130,25 @@ class MotorDriver:
             errors.append({"id": mi.motor_id, "code": int(code), "name": name, "type": mi.motor_type})
         return errors
 
+    def get_states(self) -> list[dict]:
+        """读取底层驱动已缓存的电机状态，不主动刷新 CAN。"""
+        states = []
+        for mi in self._motors:
+            try:
+                states.append({
+                    "id": mi.motor_id,
+                    "position": round(float(mi.motor.get_motor_pos()), 4),
+                    "speed": round(float(mi.motor.get_motor_spd()), 4),
+                    "torque": round(float(mi.motor.get_motor_current()), 4),
+                    "temperature": round(float(mi.motor.get_motor_temperature()), 1),
+                    "error": int(mi.motor.get_error_id()),
+                    "mode": int(mi.motor.get_motor_control_mode()),
+                    "response_count": int(mi.motor.get_response_count()),
+                })
+            except Exception:
+                continue
+        return states
+
     def clear_errors(self):
         for mi in self._motors:
             try:

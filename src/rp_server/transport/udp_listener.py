@@ -53,7 +53,7 @@ _BTN_MAP: dict[str, str] = {
 # Dead zone: joystick values within ±DEAD_ZONE are ignored
 DEAD_ZONE = 0.01
 STOP_ACK_INTERVAL = 0.02
-STOP_SCRIPT = "/home/orangepi/roboparty_rp_server/stop_robot.sh"
+STOP_SCRIPT = "/home/orangepi/roboparty_rp_server/scripts/stop_robot.sh"
 
 
 class UDPJoyListener:

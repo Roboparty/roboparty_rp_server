@@ -4,7 +4,7 @@
 # 真正紧急情况请优先使用硬件急停。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_DIR="$(cd "$SCRIPT_DIR/../roboparty_deploy" && pwd)"
+WORKSPACE_DIR="$(cd "$SCRIPT_DIR/../../roboparty_deploy" && pwd)"
 
 echo "正在执行软件快速停止..."
 

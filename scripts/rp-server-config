@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 2 ] || [ "$1" != "--host" ]; then
+    echo "Usage: rp-server-config --host <IPv4 address>" >&2
+    exit 2
+fi
+
+host=$2
+if ! python3 -c 'import ipaddress, sys; ipaddress.IPv4Address(sys.argv[1])' "$host" 2>/dev/null; then
+    echo "Error: host must be a valid IPv4 address" >&2
+    exit 2
+fi
+
+sed -i "s/^RP_HOST=.*/RP_HOST=$host/" /etc/default/rp-server
+systemctl restart rp-server.service
+systemctl is-active --quiet rp-server.service
+echo "rp-server host has been set to $host"

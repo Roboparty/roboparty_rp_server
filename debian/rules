@@ -4,6 +4,7 @@
 
 override_dh_install:
 	dh_install
+	chmod 0755 debian/roboparty-rp-server/usr/sbin/rp-server-config
 	# Python package
 	mkdir -p debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server
 	cp -r src/rp_server/*.py \

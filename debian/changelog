@@ -1,3 +1,10 @@
+roboparty-rp-server (1.3.2-1) unstable; urgency=medium
+
+  * Read BMS telemetry directly from bms_daemon over its Unix socket.
+  * Add binary frame buffering and automatic Unix socket reconnection.
+
+ -- changchuanyong <1984715306@qq.com>  Sat, 22 Aug 2026 18:13:57 +0800
+
 roboparty-rp-server (1.3.1-1) unstable; urgency=medium
 
   * Bump package version.

@@ -42,7 +42,9 @@ jobs:
           echo "✅ Tag matches changelog: v$TAG_VERSION"
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y debhelper dh-make
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential dpkg-dev debhelper dh-make
 
       - name: Build deb package
         run: |

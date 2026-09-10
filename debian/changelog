@@ -1,4 +1,4 @@
-roboparty-rp-server (1.3.11-1) unstable; urgency=medium
+roboparty-rp-server (1.4.0-1) unstable; urgency=medium
 
   * Remove hard package dependencies on roboparty-rp-head and
     roboparty-inference.

@@ -1,3 +1,11 @@
+roboparty-rp-server (1.3.10-1) unstable; urgency=medium
+
+  * Fix joystick axes stuck at the last value after stick release:
+    in-dead-zone values now quantize to zero and the joystick resets
+    when the controlling UDP session times out.
+  * Default IMU to CAN interface can_hipnuc at 1000000 baud.
+
+ -- changchuanyong <1984715306@qq.com>  Thu, 10 Sep 2026 12:40:00 +0800
 roboparty-rp-server (1.3.9-1) unstable; urgency=medium
 
   * fix bug

@@ -30,14 +30,14 @@ class IMUDriver:
                 imu_id=ic.get("imu_id", 8),
                 interface_type=ic.get(
                     "imu_interface_type",
-                    ic.get("interface_type", "serial"),
+                    ic.get("interface_type", "can"),
                 ),
                 interface=ic.get(
                     "imu_interface",
-                    ic.get("interface", "/dev/ttyUSB0"),
+                    ic.get("interface", "can_hipnuc"),
                 ),
                 imu_type=ic.get("imu_type", "HIPNUC"),
-                baudrate=ic.get("baudrate", 921600),
+                baudrate=ic.get("baudrate", 1000000),
             )
             logger.info("IMU initialised")
             return True

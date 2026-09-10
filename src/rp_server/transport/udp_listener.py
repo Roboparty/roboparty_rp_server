@@ -99,6 +99,8 @@ class UDPJoyListener:
         self._stop_ack_tasks: dict[str, asyncio.Task] = {}
         self._software_stop_task: Optional[asyncio.Task] = None
         self._stop_latched = False
+        # 最后操控摇杆的会话 addr_key（超时清理时用于判断是否需要归零）
+        self._joy_owner: Optional[str] = None
 
     # ------------------------------------------------------------------
     # Connection protocol (asyncio Datagram)
@@ -176,11 +178,20 @@ class UDPJoyListener:
                 await asyncio.sleep(5)
                 expired_sessions = self._sessions.cleanup_expired()
                 expired_auth = self._auth.cleanup_expired()
-                # 停止已过期会话的遥测任务
+                # 停止已过期会话的遥测任务；最后操控摇杆的会话断开时摇杆归零
+                joy = getattr(self._handler, "joy", None)
                 for session in expired_sessions:
                     task = self._telemetry_tasks.pop(session.addr_key, None)
                     if task:
                         task.cancel()
+                    if (
+                        joy is not None
+                        and session.state == SessionState.CONNECTED
+                        and session.addr_key == self._joy_owner
+                    ):
+                        joy.reset()
+                        self._joy_owner = None
+                        logger.info("会话超时，摇杆已归零: %s", session.addr_key)
                 if expired_sessions or expired_auth:
                     logger.info("清理: 会话 %d 个, 认证 %d 个", len(expired_sessions), expired_auth)
             except asyncio.CancelledError:
@@ -442,14 +453,15 @@ class UDPJoyListener:
             session.last_control_timestamp = timestamp
 
         addr_key = f"{addr[0]}:{addr[1]}"
+        self._joy_owner = addr_key
 
-        # Axes → AT+JOY
+        # Axes → AT+JOY（落入死区时量化为 0 照常下发，保证松手回零；重复 0 由 JoyDriver 去重）
         for json_key, at_axis in _AXIS_MAP.items():
             val = pkt.get(json_key, 0.0)
             if not isinstance(val, (int, float)):
                 continue
             if -DEAD_ZONE < val < DEAD_ZONE:
-                continue
+                val = 0.0
             clamped = max(-1.0, min(1.0, float(val)))
             self._dispatch(f"AT+JOY={at_axis},{clamped:.3f}")
 

@@ -24,9 +24,11 @@ from .motors import MotorStateSource
 
 class TelemetryMonitor:
 
-    def __init__(self, imu, bms, motors, config: dict, mock: bool = False):
+    def __init__(self, imu, bms, motors, config: dict, mock: bool = False,
+                 recorder=None):
         tcfg = config.get("telemetry", {})
         self.clients: set[asyncio.Queue] = set()
+        self.recorder = recorder
         self._imu_source = ImuSource(imu, mock, tcfg.get("imu_hz", 50))
         self._battery_source = BatterySource(bms, mock, tcfg.get("battery_hz", 50))
         self._motor_source = MotorStateSource(
@@ -58,6 +60,8 @@ class TelemetryMonitor:
         self.clients.discard(q)
 
     async def broadcast(self, msg: Envelope):
+        if self.recorder is not None:
+            self.recorder.record(msg)
         dead = []
         for q in self.clients:
             try:

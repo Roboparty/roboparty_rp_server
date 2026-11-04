@@ -42,7 +42,11 @@ def service_ready_check(name: str, timeout_s: float = 5.0):
     async def check() -> bool:
         current = await services(timeout_s)
         if current is None:
-            return True
+            # Cannot verify readiness without ROS. Reporting success here would
+            # claim STATE_RUNNING for a process that may not be accepting
+            # control, so fail closed instead.
+            logger.error("readiness probe unavailable: ros2 not found")
+            return False
         return target in current or target.lstrip("/") in current
 
     check.__name__ = f"service_ready_check({target})"

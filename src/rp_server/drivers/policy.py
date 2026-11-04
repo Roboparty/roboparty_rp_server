@@ -8,10 +8,12 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import shlex
 import signal
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger("rp_server.policy")
@@ -20,6 +22,22 @@ logger = logging.getLogger("rp_server.policy")
 # PolicyCommand.name before launching.
 DEFAULT_LAUNCH_CMD = "ros2 launch roboparty_inference inference.launch.py robot:=rpo policy:={policy}"
 _POLICY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def screen_instance_running(session: str = "inference_session") -> bool:
+    """Return True when a live screen session with this name exists."""
+    if shutil.which("screen") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["screen", "-ls"], capture_output=True, text=True, timeout=2.0
+        )
+    except Exception:
+        return False
+    for line in result.stdout.splitlines():
+        if session in line and "(Dead" not in line:
+            return True
+    return False
 
 
 class PolicyDriver:
@@ -33,15 +51,22 @@ class PolicyDriver:
 
     def __init__(self, launch_cmd: str = DEFAULT_LAUNCH_CMD, ready_check=None,
                  ready_timeout_s: float = 15.0, lock_path: str | None = None,
-                 log_path: str | None = None):
+                 log_path: str | None = None, lifecycle_cb=None,
+                 developer_mode: bool = False, instance_check=None):
         self._launch_cmd = launch_cmd
         self._log_path = log_path
         self._log_file = None
+        self._lifecycle_cb = lifecycle_cb
+        self.session_id = ""
+        self._started_at = 0.0
+        self._watch_task = None
         self._proc: subprocess.Popen | None = None
         self._name = ""
         self._ready_check = ready_check
         self._ready_timeout_s = ready_timeout_s
         self._lock_path = lock_path
+        self._developer_mode = developer_mode
+        self._instance_check = instance_check
         self._stop_requested = False
         self._starting = False
         self._stopping = False
@@ -76,21 +101,40 @@ class PolicyDriver:
         if not _POLICY_NAME.fullmatch(policy):
             logger.error("invalid policy name: %r", name, extra={"event_type": "policy"})
             return False
+        if self._proc is None and self._instance_check is not None and self._instance_check():
+            # PRD: repeated start returns the existing instance or an explicit
+            # conflict; never kill an existing inference just to restart it.
+            self._starting = False
+            self._failed = True
+            self._message = "inference instance already running"
+            self._updated_at_ms = int(time.time() * 1000)
+            self._emit("failed", reason="instance_exists")
+            return False
+
+        self.session_id = uuid.uuid4().hex
+        self._started_at = time.time()
+        self._name = policy
+        self._emit("starting", policy=policy)
         command = self._launch_cmd
         if "{policy}" in command:
             command = command.replace("{policy}", policy)
         elif re.search(r"policy:=\S+", command):
             command = re.sub(r"policy:=\S+", f"policy:={policy}", command)
-        if self._lock_path:
-            command = "flock -n {} bash -c {}".format(
-                shlex.quote(self._lock_path), shlex.quote(command))
+        env = os.environ.copy()
+        if self._developer_mode:
+            logger.warning("DEVELOPER MODE: bypassing control lock %s",
+                           self._lock_path, extra={"event_type": "policy"})
+            # start_robot.sh checks this and skips its own lock acquisition.
+            env["ROBOPARTY_CONTROL_LOCK_HELD"] = "1"
+        elif self._lock_path:
+            command = self._locked_command(self._lock_path, command)
         if self._log_path:
             Path(self._log_path).parent.mkdir(parents=True, exist_ok=True)
             self._log_file = open(self._log_path, "ab", buffering=0)
             logger.info("policy log: %s", self._log_path, extra={"event_type": "policy"})
         try:
             self._proc = subprocess.Popen(
-                command, shell=True, env=os.environ.copy(),
+                command, shell=True, env=env,
                 stdout=self._log_file or subprocess.DEVNULL,
                 stderr=subprocess.STDOUT if self._log_file else subprocess.DEVNULL,
                 # Put the shell and all ros2-launched children in one process
@@ -100,13 +144,15 @@ class PolicyDriver:
             self._name = policy
             logger.info("policy started: %s (pid %d)", policy, self._proc.pid,
                         extra={"event_type": "policy"})
+            self._watch_task = asyncio.create_task(self._watch(self._proc))
         except Exception as exc:
             self._close_log()
             self._starting = False
             logger.error("policy start failed: %s", exc, extra={"event_type": "policy"})
+            self._emit("failed", reason="start_error", error=str(exc))
             return False
 
-        if self._lock_path:
+        if self._lock_path and not self._developer_mode:
             await asyncio.sleep(0.2)
             if self._proc is None or self._proc.poll() is not None:
                 logger.error("policy failed to acquire control lock: %s", self._lock_path,
@@ -117,6 +163,7 @@ class PolicyDriver:
                 self._failed = True
                 self._message = "control lock busy"
                 self._updated_at_ms = int(time.time() * 1000)
+                self._emit("failed", reason="control_lock")
                 return False
 
         if self._ready_check is not None and not await self._wait_ready():
@@ -128,11 +175,34 @@ class PolicyDriver:
             self._failed = True
             self._message = "readiness probe failed"
             self._updated_at_ms = int(time.time() * 1000)
+            self._emit("failed", reason="readiness")
             return False
         self._starting = False
         self._message = "ready"
         self._updated_at_ms = int(time.time() * 1000)
+        self._emit("running")
         return True
+
+    @staticmethod
+    def _locked_command(lock_path: str, command: str) -> str:
+        return "flock -n {} env ROBOPARTY_CONTROL_LOCK_HELD=1 bash -c {}".format(
+            shlex.quote(lock_path), shlex.quote(command))
+
+    async def _watch(self, proc) -> None:
+        code = await asyncio.to_thread(proc.wait)
+        if self._proc is not proc or self._stop_requested:
+            return
+        self._exit_code = code
+        self._failed = True
+        self._message = f"exited unexpectedly (code {code})"
+        self._updated_at_ms = int(time.time() * 1000)
+        self._emit("failed", reason="exited", exit_code=code)
+        self._close_log()
+
+    def _cancel_watch(self) -> None:
+        task, self._watch_task = self._watch_task, None
+        if task is not None and not task.done():
+            task.cancel()
 
     async def _wait_ready(self) -> bool:
         loop = asyncio.get_running_loop()
@@ -153,6 +223,8 @@ class PolicyDriver:
         proc = self._proc
         if proc is None:
             return True
+        self._emit("stopping")
+        self._cancel_watch()
         self._stop_requested = True
         self._stopping = True
         if proc.poll() is None:
@@ -171,13 +243,16 @@ class PolicyDriver:
                 self._stopping = False
                 self._message = f"stop failed: {exc}"
                 self._updated_at_ms = int(time.time() * 1000)
+                self._emit("failed", reason="stop_error", error=str(exc))
                 return False
         self._exit_code = proc.returncode
         self._proc = None
-        self._name = ""
         self._stopping = False
         self._message = "stopped"
         self._updated_at_ms = int(time.time() * 1000)
+        self._emit("stopped", exit_code=self._exit_code,
+                   duration_s=round(time.time() - self._started_at, 3))
+        self._name = ""
         self._close_log()
         return True
 
@@ -185,6 +260,7 @@ class PolicyDriver:
         proc = self._proc
         if proc is None:
             return True
+        self._cancel_watch()
         try:
             if proc.poll() is None:
                 self._signal_group(proc, signal.SIGTERM)
@@ -199,6 +275,20 @@ class PolicyDriver:
         except Exception as exc:
             logger.warning("policy terminate error: %s", exc, extra={"event_type": "policy"})
             return False
+
+    def _emit(self, phase: str, **extra) -> None:
+        payload = {"policy": self._name, **extra}
+        logger.info("inference lifecycle: phase=%s policy=%s session=%s",
+                    phase, self._name, self.session_id,
+                    extra={"event_type": "inference",
+                           "inference_session_id": self.session_id,
+                           "phase": phase})
+        callback = self._lifecycle_cb
+        if callback is not None:
+            try:
+                callback(phase, self.session_id, self._name, payload)
+            except Exception as exc:
+                logger.warning("inference lifecycle callback failed: %s", exc)
 
     def _close_log(self) -> None:
         if self._log_file is not None:
@@ -222,6 +312,10 @@ class PolicyDriver:
     @property
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
+
+    @property
+    def developer_mode(self) -> bool:
+        return self._developer_mode
 
     @property
     def failed(self) -> bool:

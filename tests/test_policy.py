@@ -90,6 +90,35 @@ def test_stop_confirms_exit_and_reports_stopped():
     assert driver.state == "STOPPED"
 
 
+def test_developer_mode_bypasses_control_lock(tmp_path):
+    import fcntl
+
+    lock = tmp_path / "control.lock"
+    marker = tmp_path / "env.txt"
+    fd = lock.open("a+")
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    command = "bash -c 'echo \"$ROBOPARTY_CONTROL_LOCK_HELD\" > {}; sleep 30'".format(
+        shlex.quote(str(marker))
+    )
+    driver = PolicyDriver(command, lock_path=str(lock), developer_mode=True)
+    try:
+        async def scenario():
+            assert await driver.start("test") is True
+            for _ in range(200):
+                if marker.exists() and marker.read_text().strip():
+                    break
+                await asyncio.sleep(0.01)
+            value = marker.read_text().strip()
+            await driver.stop()
+            return value
+
+        assert asyncio.run(scenario()) == "1"
+        assert driver.developer_mode is True
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        fd.close()
+
+
 def test_start_fails_when_control_lock_is_busy(tmp_path):
     import fcntl
 
@@ -103,3 +132,15 @@ def test_start_fails_when_control_lock_is_busy(tmp_path):
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         fd.close()
+
+
+def test_repeated_start_reports_existing_instance_without_killing_it():
+    driver = PolicyDriver("sleep 30", instance_check=lambda: True)
+
+    async def scenario():
+        return await driver.start("test")
+
+    assert asyncio.run(scenario()) is False
+    assert driver.failed is True
+    assert driver.state == "FAIL"
+    assert driver.running is False

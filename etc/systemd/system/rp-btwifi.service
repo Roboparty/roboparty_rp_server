@@ -1,5 +1,9 @@
 [Unit]
-Description=RoboParty Bluetooth WiFi Provisioning
+Description=RoboParty Bluetooth WiFi Provisioning (legacy, disabled by default)
+# PRD 5.8: the legacy RFCOMM provisioning entry must not be exposed by default.
+# Create /etc/rp-server/enable-btwifi only for an explicitly authorized legacy
+# provisioning window; the packaged postinst no longer enables this unit.
+ConditionPathExists=/etc/rp-server/enable-btwifi
 After=bluetooth.target network.target
 Wants=bluetooth.target
 StartLimitIntervalSec=0

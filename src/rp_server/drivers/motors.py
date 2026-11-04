@@ -103,7 +103,7 @@ class MotorDriver:
                     motor_idx += 1
                     global_idx += 1
 
-            logger.info("motors initialised: %d", len(self._motors))
+            logger.info("motors probed (read-only, not enabled): %d", len(self._motors))
             return True
         except Exception as exc:
             logger.error("motor init failed: %s", exc)

@@ -125,11 +125,14 @@ def main():
     host = args.host or os.environ.get("RP_HOST") or config.get("server", {}).get("host", "0.0.0.0")
     port = args.port or int(os.environ.get("RP_PORT") or 0) or config.get("server", {}).get("port", 9000)
 
-    tls_cfg = config.get("tls", {})
+    tls_cfg = dict(config.get("tls", {}))
+    if "RP_TLS_ENABLED" in os.environ:
+        tls_cfg["enabled"] = os.environ["RP_TLS_ENABLED"].lower() in ("1", "true", "yes")
+    config["tls"] = tls_cfg
     tls_kwargs = {}
     if tls_cfg.get("enabled"):
-        cert = tls_cfg.get("certfile", "")
-        key = tls_cfg.get("keyfile", "")
+        cert = os.environ.get("RP_TLS_CERTFILE") or tls_cfg.get("certfile", "")
+        key = os.environ.get("RP_TLS_KEYFILE") or tls_cfg.get("keyfile", "")
         if not cert or not key:
             raise SystemExit("tls.enabled is set but certfile/keyfile are empty")
         if not ensure_self_signed(cert, key):

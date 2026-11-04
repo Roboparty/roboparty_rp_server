@@ -43,8 +43,11 @@ def identity(app, scopes=("read", "control"), ttl=900):
     return key, entry["appKeyId"], token
 
 
-def headers(token):
-    return {"Authorization": "Bearer " + token}
+def headers(token, subprotocol=False):
+    values = {"Authorization": "Bearer " + token}
+    if subprotocol:
+        values["Sec-WebSocket-Protocol"] = "roboparty.v2.proto"
+    return values
 
 
 def text(ws):

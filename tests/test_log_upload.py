@@ -104,3 +104,50 @@ class LogUploadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublicLogPolicyTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(__file__).resolve().parents[2] / "test/tmp"
+        root.mkdir(parents=True, exist_ok=True)
+        self.tmp = tempfile.TemporaryDirectory(prefix="public-policy-test-", dir=root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_redacts_identity_and_sensitive_text(self):
+        from rp_server.log_upload import PublicLogPolicy
+        policy = PublicLogPolicy(alias="anonymous")
+        event = {
+            "event_id": "e1", "device_id": "SN-123", "service": "rp_server",
+            "schema_version": "1", "event_type": "lease", "session_id": "s1",
+            "inference_session_id": "inf-1", "phase": "running", "boot_id": "b1",
+            "software_version": "1.4.0", "firmware_version": "1.0",
+            "device_model": "rp1", "timestamp": "2026-11-04T00:00:00+00:00",
+            "level": "INFO", "message": "client 192.168.1.5 /etc/rp-server/auth/key token=abcdef0123456789abcdef0123456789",
+            "fields": {"logger": "rp_server.control", "module": "control",
+                       "function": "acquire", "line": 1, "secret": "nope"},
+        }
+        result = policy.apply(event)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["device_id"], "anonymous")
+        self.assertEqual(result["session_id"], "")
+        self.assertEqual(result["boot_id"], "")
+        self.assertEqual(result["device_model"], "")
+        self.assertIn("<ip>", result["message"])
+        self.assertIn("<path>", result["message"])
+        self.assertIn("<redacted>", result["message"])
+        self.assertNotIn("secret", result["fields"])
+        self.assertEqual(result["inference_session_id"], "inf-1")
+
+    def test_non_allowlisted_event_is_dropped(self):
+        from rp_server.log_upload import PublicLogPolicy
+        policy = PublicLogPolicy()
+        event = {"event_type": "auth", "message": "x", "fields": {}}
+        self.assertIsNone(policy.apply(event))
+
+    def test_public_requires_consent(self):
+        self.assertIsNone(attach_log_server({
+            "logging": {"dir": self.tmp.name},
+            "log_server": {"enabled": True, "public": True, "public_consent": False},
+        }))

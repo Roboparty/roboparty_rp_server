@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import socket
 import sqlite3
 import sys
@@ -51,6 +52,42 @@ def _boot_id() -> str:
         return BOOT_ID_PATH.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+
+
+class PublicLogPolicy:
+    """Allow-list and redaction for public anonymous log submission."""
+
+    DEFAULT_EVENT_TYPES = ("startup", "lease", "inference", "policy", "command", "skill", "log")
+    DEFAULT_FIELDS = ("logger", "module", "function", "line")
+    IP = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+    PATH = re.compile(r"(?:/[A-Za-z0-9_.-]+){2,}")
+    TOKEN = re.compile(r"(?:Bearer\s+\S+|[A-Fa-f0-9]{32,})")
+
+    def __init__(self, alias="robot", event_types=None, fields=None):
+        self.alias = alias or "robot"
+        self.event_types = set(event_types or self.DEFAULT_EVENT_TYPES)
+        self.fields = set(fields or self.DEFAULT_FIELDS)
+
+    def _redact(self, value):
+        text = str(value or "")
+        text = self.IP.sub("<ip>", text)
+        text = self.PATH.sub("<path>", text)
+        text = self.TOKEN.sub("<redacted>", text)
+        return text[:65536]
+
+    def apply(self, event: dict) -> dict | None:
+        if event.get("event_type") not in self.event_types:
+            return None
+        result = dict(event)
+        result["device_id"] = self.alias
+        result["session_id"] = ""
+        result["boot_id"] = ""
+        result["device_model"] = ""
+        result["message"] = self._redact(result.get("message", ""))
+        fields = {key: self._redact(value) for key, value in (result.get("fields") or {}).items()
+                  if key in self.fields}
+        result["fields"] = fields
+        return result
 
 
 class LogSpool:
@@ -201,6 +238,7 @@ class LogUploadHandler(logging.Handler):
                  batch_size: int = 50, flush_interval: float = 2.0,
                  timeout: float = 5.0, level: int = logging.INFO,
                  software_version: str = RP_SERVER_VERSION,
+                 policy: PublicLogPolicy | None = None,
                  firmware_version: str = "", device_model: str = ""):
         super().__init__(level)
         self.device_id = _text(device_id or socket.gethostname(), 256) or "unknown"
@@ -215,6 +253,7 @@ class LogUploadHandler(logging.Handler):
         self.batch_size = max(1, int(batch_size))
         self.flush_interval = max(0.1, float(flush_interval))
         self.timeout = max(0.1, float(timeout))
+        self.policy = policy
         self._spool = LogSpool(spool_path, spool_max_events, max_attempts)
         self._wake = threading.Event()
         self._stopped = threading.Event()
@@ -230,7 +269,12 @@ class LogUploadHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
-            self._spool.add(self._event(record))
+            event = self._event(record)
+            if self.policy is not None:
+                event = self.policy.apply(event)
+                if event is None:
+                    return
+            self._spool.add(event)
             self._wake.set()
         except Exception:
             self._spool.dropped += 1
@@ -255,6 +299,8 @@ class LogUploadHandler(logging.Handler):
             "schema_version": "1",
             "event_type": _text(getattr(record, "event_type", ""), 256),
             "session_id": self.session_id,
+            "inference_session_id": _text(getattr(record, "inference_session_id", ""), 256),
+            "phase": _text(getattr(record, "phase", ""), 256),
             "boot_id": self.boot_id,
             "software_version": self.software_version,
             "firmware_version": self.firmware_version,
@@ -335,6 +381,17 @@ def attach_log_server(config: dict, logger_name: str = "rp_server") -> LogUpload
     spool_path = cfg.get("spool_path") or os.path.join(
         config.get("logging", {}).get("dir", "logs"), "log-spool.sqlite3")
     level_name = str(cfg.get("level", "INFO")).upper()
+    policy = None
+    if cfg.get("public"):
+        if not cfg.get("public_consent"):
+            logger.warning("public log upload disabled: public_consent is false",
+                           extra={"event_type": "log"})
+            return None
+        policy = PublicLogPolicy(
+            alias=cfg.get("public_alias", "robot"),
+            event_types=cfg.get("public_event_types"),
+            fields=cfg.get("public_fields"),
+        )
     try:
         handler = LogUploadHandler(
             device_id=device_id,
@@ -350,6 +407,7 @@ def attach_log_server(config: dict, logger_name: str = "rp_server") -> LogUpload
             level=getattr(logging, level_name, logging.INFO),
             firmware_version=firmware_version,
             device_model=device_model,
+            policy=policy,
         )
     except Exception as exc:
         logger.warning("log server upload disabled: %s", exc, extra={"event_type": "log"})

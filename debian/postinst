@@ -4,5 +4,6 @@ set -e
 systemctl daemon-reload || true
 systemctl enable rp-server.service || true
 systemctl start rp-server.service || true
-systemctl enable rp-btwifi.service || true
-systemctl start rp-btwifi.service || true
+# PRD 5.8: legacy Bluetooth provisioning is fail-closed. It stays installed
+# but disabled; opt in explicitly with /etc/rp-server/enable-btwifi.
+systemctl disable --now rp-btwifi.service || true

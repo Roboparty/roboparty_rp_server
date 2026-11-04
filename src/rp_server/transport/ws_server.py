@@ -36,9 +36,10 @@ from ..drivers.motors import MotorDriver
 from ..drivers.imu import IMUDriver
 from ..drivers.bms import BMSDriver
 from ..drivers.joy import JoyDriver
-from ..drivers.policy import DEFAULT_LAUNCH_CMD, PolicyDriver
+from ..drivers.policy import DEFAULT_LAUNCH_CMD, PolicyDriver, screen_instance_running
 from ..drivers.ros_probe import service_ready_check
 from ..monitors import TelemetryMonitor
+from ..monitors.segment import SegmentRecorder
 from ..state import AppState
 from .serial_server import SerialServer
 from .bt_server import BTServer
@@ -117,12 +118,33 @@ def create_app(config: dict) -> FastAPI:
     ready_service = str(robot_cfg.get("ready_service", "start_inference"))
     ready_timeout_s = float(robot_cfg.get("ready_timeout_s", 15.0))
     control_lock = robot_cfg.get("control_lock", "/dev/shm/roboparty-control.lock")
+    dev_env = os.environ.get("RP_DEVELOPER_MODE")
+    developer_mode = (
+        dev_env.lower() in ("1", "true", "yes")
+        if dev_env is not None
+        else bool(robot_cfg.get("developer_mode", False))
+    )
+    if developer_mode:
+        logger.warning("DEVELOPER MODE enabled: control lock is bypassed",
+                       extra={"event_type": "startup"})
+    log_dir = config.get("logging", {}).get("dir", "logs")
+    seg_cfg = config.get("segments", {}) or {}
+    segment_recorder = SegmentRecorder(
+        seg_cfg.get("dir") or os.path.join(log_dir, "segments"),
+        pre_window_s=seg_cfg.get("pre_window_s", 5.0),
+        post_window_s=seg_cfg.get("post_window_s", 5.0),
+        buffer_s=seg_cfg.get("buffer_s", 10.0),
+        enabled=seg_cfg.get("enabled", True),
+    )
     policy = PolicyDriver(
         robot_cfg.get("launch_cmd", DEFAULT_LAUNCH_CMD),
         ready_check=service_ready_check(ready_service),
         ready_timeout_s=ready_timeout_s,
         lock_path=control_lock,
-        log_path=os.path.join(config.get("logging", {}).get("dir", "logs"), "policy.log"),
+        log_path=os.path.join(log_dir, "policy.log"),
+        lifecycle_cb=segment_recorder.on_lifecycle,
+        developer_mode=developer_mode,
+        instance_check=screen_instance_running,
     )
     hardware_cfg = config.get("hardware", {})
     required_hardware = tuple(hardware_cfg.get("required", ("motors", "imu")))
@@ -250,6 +272,7 @@ def create_app(config: dict) -> FastAPI:
     lease = ControlLease(handler, float(control_cfg.get("lease_ttl_s", 3.0)),
                          float(control_cfg.get("input_timeout_s", 0.5)))
     app.state.control = lease
+    app.state.segment_recorder = segment_recorder
     lease_holders = set()
 
     async def guarded_dispatch(session, token, env):
@@ -348,7 +371,7 @@ def create_app(config: dict) -> FastAPI:
                 return
 
     # --- monitors ---
-    telemetry = TelemetryMonitor(imu, bms, motors, config, mock=mock)
+    telemetry = TelemetryMonitor(imu, bms, motors, config, mock=mock, recorder=segment_recorder)
 
     rp = AppState(
         config=config,
@@ -459,6 +482,7 @@ def create_app(config: dict) -> FastAPI:
         if serial_srv:
             await serial_srv.stop()
         await telemetry.stop()
+        segment_recorder.close()
         if policy.running:
             await policy.stop()
         if not mock:
@@ -480,6 +504,7 @@ def create_app(config: dict) -> FastAPI:
             "hardware": dict(hardware_status),
             "required_hardware": list(required_hardware),
             "mock": mock,
+            "developer_mode": developer_mode,
             "version": __version__,
         }
 
@@ -502,6 +527,7 @@ def create_app(config: dict) -> FastAPI:
             "hw_ready": True if mock else hardware_ready(),
             "hardware": dict(hardware_status),
             "mock": mock,
+            "developer_mode": developer_mode,
             "policy": policy.name,
             "policy_running": policy.running,
             "joy_device": joy.device_path,
@@ -871,8 +897,8 @@ def create_app(config: dict) -> FastAPI:
             await ws.close(code=1008)
             return
         client_addr = ws.client.host if ws.client else "unknown"
-        subprotocol = ws.headers.get("sec-websocket-protocol", "")
-        if "roboparty.v2.proto" not in [item.strip() for item in subprotocol.split(",")]:
+        subprotocols = ws.scope.get("subprotocols") or []
+        if "roboparty.v2.proto" not in subprotocols:
             await ws.close(code=1002)
             return
         logger.info("WebSocket 连接建立: %s", client_addr, extra={"event_type": "connection"})

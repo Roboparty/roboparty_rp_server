@@ -25,6 +25,7 @@ if ! PYTHONNOUSERSITE=1 "$PYTHON" -c 'import google.protobuf' >/dev/null 2>&1; t
 fi
 
 export PYTHONNOUSERSITE=1
+export RP_TLS_ENABLED="${RP_TLS_ENABLED:-0}"
 export PYTHONPATH="$ROOT/src:$ROOT/src/rp_server/protocol/gen${PYTHONPATH:+:$PYTHONPATH}"
 
 if ! "$PYTHON" -c 'import fastapi, pydantic; assert pydantic.VERSION.startswith("1.")' >/dev/null 2>&1; then

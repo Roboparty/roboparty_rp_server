@@ -12,6 +12,8 @@ Depends: roboparty-base (>= 1.0.0),
          roboparty-imu (>= 1.0.0),
          roboparty-bms (>= 1.0.0),
          robopi-tui (>= 1.1.2),
+         roboparty-start (>= 1.3.1),
+         roboparty-inference (>= 1.3.0),
          python3,
          python3-fastapi,
          python3-uvicorn,
@@ -24,7 +26,7 @@ Depends: roboparty-base (>= 1.0.0),
          python3-evdev,
          python3-serial-asyncio,
          ${misc:Depends}
-Recommends: python3-bluez
+Recommends: python3-bluez, python3-dbus, python3-gi
 Description: RoboParty unified web backend server
  FastAPI + WebSocket server providing the roboparty.v1 protobuf
  protocol for gamepad, Android app, head unit, MCP, and backpack

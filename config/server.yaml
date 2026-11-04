@@ -25,15 +25,22 @@ robot:
   # ROS 2 package name uses underscores (roboparty_inference). {policy} is
   # replaced by the validated PolicyCommand.name; keep robot in sync with
   # /opt/roboparty/share/roboparty_inference/robots/<robot>/robot.yaml.
-  launch_cmd: "ros2 launch roboparty_inference inference.launch.py robot:=rpo policy:={policy}"
-  # STATE_RUNNING is returned only after this service is visible.  If ros2 is
-  # not on PATH the probe is skipped and startup falls back to process-only.
+  # 产品启动统一委托 roboparty-start；--foreground 让 PolicyDriver 管理整个进程组。
+  launch_cmd: "/opt/roboparty/bin/start_robot.sh --foreground --robot rpo --policy {policy}"
+  # STATE_RUNNING is returned only after this service is visible. If ros2 is
+  # missing or the probe fails, startup fails closed instead of reporting
+  # process-only success.
   ready_service: "start_inference"
   ready_timeout_s: 15
   # System-wide coordination lock: inference, start/deploy, TUI maintenance and
   # flashing all use the same path. Keep it on tmpfs so root and robo can open
   # the same inode without creating /run/lock entries at package time.
   control_lock: "/dev/shm/roboparty-control.lock"
+  # Development only: bypass the cross-process control lock so a policy can be
+  # started even when start_robot.sh / another maintenance task holds it.
+  # Never enable on a robot that may be operated concurrently. Can also be
+  # enabled with RP_DEVELOPER_MODE=1.
+  developer_mode: false
 
 # 日志配置
 logging:
@@ -58,6 +65,12 @@ log_server:
   spool_path: ""         # 留空用 logging.dir/log-spool.sqlite3
   spool_max_events: 10000
   max_attempts: 20
+  # 公网匿名模式：先显式同意，再按 event_type/字段白名单脱敏；默认关闭。
+  public: false
+  public_consent: false
+  public_alias: "robot"
+  public_event_types: ["startup", "lease", "inference", "policy", "command", "skill", "log"]
+  public_fields: ["logger", "module", "function", "line"]
   batch_size: 50
   flush_interval_s: 2.0
   timeout_s: 5.0
@@ -90,6 +103,14 @@ telemetry:
   battery_hz: 50
   motor_hz: 1      # motor states broadcast; sampled together with errors
   error_hz: 10     # motor_error_push broadcast
+
+# inference 分段遥测：每次 policy 启动到停止一个分段，本地落盘，不自动上传。
+segments:
+  enabled: true
+  dir: ""                 # 留空用 logging.dir/segments
+  pre_window_s: 5         # 启动前保留
+  post_window_s: 5        # 停止后继续记录
+  buffer_s: 10            # 无分段时的内存环形窗口
 
 tls:
   # WSS/TLS for /ws-json (and /ws). v2 requires TLS; a self-signed

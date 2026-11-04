@@ -236,7 +236,9 @@ conflict where a pip-installed pydantic 2.x shadows the Debian fastapi 0.63.
 ### Install
 
 Install the deb package (see [Install (deb)](#install-deb) below). Its `postinst`
-enables and starts `rp-server.service` and `rp-btwifi.service` automatically.
+enables and starts `rp-server.service`. The legacy `rp-btwifi.service` is left
+installed but disabled, and is gated by `/etc/rp-server/enable-btwifi`; it is
+not part of the product provisioning flow.
 
 ### Service Management
 

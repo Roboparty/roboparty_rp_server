@@ -1,3 +1,12 @@
+roboparty-rp-server (1.5.3-1) unstable; urgency=medium
+
+  * Keep failed log events in a bounded dead-letter table instead of silently
+    dropping them after max attempts or a permanent HTTP 4xx.
+  * Ack only after a successful upload; expose spool, dropped and rejected
+    counters and rate-limited stderr warnings.
+
+ -- RoboParty <2321901849@qq.com>  Wed, 04 Nov 2026 14:40:00 +0800
+
 roboparty-rp-server (1.5.2-1) unstable; urgency=medium
 
   * Format exception log records with traceback instead of calling the

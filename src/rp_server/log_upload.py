@@ -62,6 +62,9 @@ class LogSpool:
         self.max_events = max(1, int(max_events))
         self.max_attempts = max(1, int(max_attempts))
         self.dropped = 0
+        self.rejected = 0
+        self.dead_letter_dropped = 0
+        self._warned: dict[str, float] = {}
         self._lock = threading.Lock()
         self._db = sqlite3.connect(self.path, timeout=10, check_same_thread=False)
         with self._lock, self._db:
@@ -73,6 +76,14 @@ class LogSpool:
                 attempts INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL)""")
             self._db.execute("CREATE INDEX IF NOT EXISTS spool_id ON spool(id)")
+            self._db.execute("""CREATE TABLE IF NOT EXISTS dead_letter (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payload TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                failed_at TEXT NOT NULL,
+                reason TEXT NOT NULL)""")
+            self._db.execute("CREATE INDEX IF NOT EXISTS dead_letter_id ON dead_letter(id)")
 
     def add(self, event: dict) -> None:
         payload = json.dumps(event, ensure_ascii=False, allow_nan=False)
@@ -86,6 +97,8 @@ class LogSpool:
                     "DELETE FROM spool WHERE id IN (SELECT id FROM spool ORDER BY id LIMIT ?)",
                     (excess,))
                 self.dropped += excess
+        if count > self.max_events:
+            self._warn("overflow", f"dropped {excess} oldest event(s) at capacity {self.max_events}")
 
     def peek(self, limit: int) -> list[tuple[int, str]]:
         with self._lock:
@@ -110,9 +123,70 @@ class LogSpool:
         with self._lock, self._db:
             self._db.execute(
                 f"UPDATE spool SET attempts = attempts + 1 WHERE id IN ({placeholders})", ids)
-            cursor = self._db.execute(
-                "DELETE FROM spool WHERE attempts >= ?", (self.max_attempts,))
-            self.dropped += cursor.rowcount
+            rows = self._db.execute(
+                "SELECT id, payload, attempts, created_at FROM spool WHERE attempts >= ?",
+                (self.max_attempts,)).fetchall()
+            self._to_dead_letter(rows, "max_attempts")
+        if rows:
+            self._warn(
+                "max_attempts",
+                f"moved {len(rows)} event(s) to dead letter after {self.max_attempts} attempts",
+            )
+
+    def reject(self, ids: list[int], reason: str) -> None:
+        """Isolate events the server will never accept, without blocking the queue."""
+        if not ids:
+            return
+        placeholders = ",".join("?" * len(ids))
+        with self._lock, self._db:
+            rows = self._db.execute(
+                f"SELECT id, payload, attempts, created_at FROM spool "
+                f"WHERE id IN ({placeholders})", ids).fetchall()
+            self._to_dead_letter(rows, reason)
+        if rows:
+            self._warn(reason, f"moved {len(rows)} event(s) to dead letter ({reason})")
+
+    def status(self) -> dict:
+        with self._lock:
+            spooled = self._db.execute("SELECT COUNT(*) FROM spool").fetchone()[0]
+            dead = self._db.execute("SELECT COUNT(*) FROM dead_letter").fetchone()[0]
+        return {
+            "spooled": spooled,
+            "dead_letter": dead,
+            "dropped": self.dropped,
+            "rejected": self.rejected,
+            "dead_letter_dropped": self.dead_letter_dropped,
+            "max_events": self.max_events,
+            "max_attempts": self.max_attempts,
+        }
+
+    def _to_dead_letter(self, rows, reason: str) -> None:
+        failed_at = _now()
+        for row in rows:
+            self._db.execute(
+                "INSERT INTO dead_letter(payload, attempts, created_at, failed_at, reason) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (row[1], row[2], row[3], failed_at, reason),
+            )
+            self._db.execute("DELETE FROM spool WHERE id = ?", (row[0],))
+        self.rejected += len(rows)
+        self._enforce_dead_limit()
+
+    def _enforce_dead_limit(self) -> None:
+        count = self._db.execute("SELECT COUNT(*) FROM dead_letter").fetchone()[0]
+        if count > self.max_events:
+            excess = count - self.max_events
+            self._db.execute(
+                "DELETE FROM dead_letter WHERE id IN "
+                "(SELECT id FROM dead_letter ORDER BY id LIMIT ?)", (excess,))
+            self.dead_letter_dropped += excess
+
+    def _warn(self, key: str, message: str) -> None:
+        now = time.monotonic()
+        if now - self._warned.get(key, 0.0) < 60.0:
+            return
+        self._warned[key] = now
+        print(f"rp_server log spool: {message}", file=sys.stderr, flush=True)
 
     def close(self) -> None:
         with self._lock:
@@ -150,6 +224,9 @@ class LogUploadHandler(logging.Handler):
     @property
     def dropped(self) -> int:
         return self._spool.dropped
+
+    def status(self) -> dict:
+        return self._spool.status()
 
     def emit(self, record: logging.LogRecord):
         try:
@@ -215,8 +292,7 @@ class LogUploadHandler(logging.Handler):
                     continue
                 except HTTPError as exc:
                     if 400 <= exc.code < 500 and exc.code not in (408, 429):
-                        self._spool.ack(ids)
-                        self._spool.dropped += len(ids)
+                        self._spool.reject(ids, f"http_{exc.code}")
                     else:
                         self._spool.fail(ids)
                 except (URLError, TimeoutError, OSError, ValueError):

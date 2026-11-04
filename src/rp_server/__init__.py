@@ -4,4 +4,4 @@
 
 """RoboParty RP Server — unified robot backend."""
 
-__version__ = "1.5.0"
+__version__ = "1.5.1"

@@ -170,7 +170,7 @@ class LogUploadHandler(logging.Handler):
         if record.levelname not in LEVELS:
             fields["level_name"] = record.levelname
         if record.exc_info:
-            fields["exception"] = self.formatException(record.exc_info)
+            fields["exception"] = "".join(traceback.format_exception(*record.exc_info))
         return {
             "event_id": uuid.uuid4().hex,
             "device_id": self.device_id,

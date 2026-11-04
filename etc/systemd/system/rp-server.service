@@ -17,7 +17,8 @@ Environment=RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty_inference/robots/rpo/
 Environment=RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
 EnvironmentFile=-/etc/default/rp-server
 EnvironmentFile=-/etc/rp-server/rp-server.env
-ExecStartPre=/usr/bin/test -r ${RP_ROBOT_CONFIG}
+# Do not block startup on the robot YAML: rp_server still serves diagnostics
+# and degrades motion features when the file is missing.
 ExecStart=/usr/bin/python3 -m rp_server --config ${RP_ROBOT_CONFIG} --host ${RP_HOST} --port ${RP_PORT} --log-level ${RP_LOG_LEVEL}
 # Uvicorn can exit with status 0 after a lifespan startup error.
 Restart=always

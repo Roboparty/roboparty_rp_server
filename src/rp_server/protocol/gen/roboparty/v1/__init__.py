@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0
+# Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+# Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+
+"""roboparty.v1 generated bindings (see ../__init__.py)."""

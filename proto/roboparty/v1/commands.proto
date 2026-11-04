@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// Client -> Server commands. Supersedes the AT+* command set and the UDP
+// control JSON.
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+import "roboparty/v1/common.proto";
+
+// Joystick axes. Names match the legacy AT axis names.
+enum Axis {
+  AXIS_UNSPECIFIED = 0;
+  AXIS_LX = 1;  // left stick X
+  AXIS_LY = 2;  // left stick Y
+  AXIS_RX = 3;  // right stick X
+  AXIS_RY = 4;  // right stick Y
+  AXIS_LT = 5;  // left trigger
+  AXIS_RT = 6;  // right trigger
+}
+
+// Digital buttons. Names match the legacy AT+BTN names.
+// Numbered buttons (btn_0..btn_15) map to BUTTON_NUM_0..BUTTON_NUM_15.
+enum Button {
+  BUTTON_UNSPECIFIED = 0;
+  BUTTON_A = 1;
+  BUTTON_B = 2;
+  BUTTON_X = 3;
+  BUTTON_Y = 4;
+  BUTTON_LB = 5;
+  BUTTON_RB = 6;
+  BUTTON_LTB = 7;  // left trigger as button
+  BUTTON_RTB = 8;  // right trigger as button
+  BUTTON_LS = 9;   // left stick click
+  BUTTON_RS = 10;  // right stick click
+  BUTTON_DU = 11;  // dpad up
+  BUTTON_DD = 12;  // dpad down
+  BUTTON_DL = 13;  // dpad left
+  BUTTON_DR = 14;  // dpad right
+  BUTTON_START = 15;
+  BUTTON_SELECT = 16;
+  BUTTON_MODE = 17;
+  BUTTON_NUM_0 = 32;
+  // BUTTON_NUM_1 .. BUTTON_NUM_14 are contiguous with BUTTON_NUM_0/15.
+  BUTTON_NUM_15 = 47;
+}
+
+enum ButtonState {
+  BUTTON_STATE_UNSPECIFIED = 0;
+  BUTTON_STATE_UP = 1;
+  BUTTON_STATE_DOWN = 2;
+}
+
+message Joystick {
+  Axis axis = 1;
+  float value = 2;  // clamped to [-1.0, 1.0]; |value| < deadzone is quantized to 0
+}
+
+message ButtonEvent {
+  Button button = 1;
+  ButtonState state = 2;
+  uint32 id = 3;  // client-assigned event id, echoed in ButtonAck
+}
+
+message PolicyCommand {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_START = 1;
+    ACTION_STOP = 2;
+  }
+  string name = 1;
+  Action action = 2;
+}
+
+message SkillAction {
+  string action_id = 1;
+  string request_id = 2;
+  uint32 sequence = 3;
+}
+
+// Replaces the UDP control JSON frame (axes + buttons + token in one packet).
+message ControlFrame {
+  Header header = 1;
+  string token = 2;
+  repeated Joystick axes = 3;
+  repeated ButtonEvent buttons = 4;
+}
+
+// Read-only queries; replaces AT+CONN? / AT+SYSINFO? / AT+POLICY? / AT+ERR?
+message Query {
+  enum What {
+    WHAT_UNSPECIFIED = 0;
+    WHAT_CONN = 1;
+    WHAT_SYSINFO = 2;
+    WHAT_POLICY = 3;
+    WHAT_ERRORS = 4;
+  }
+  What what = 1;
+}
+
+// Emergency stop (replaces AT+RESET): zero joystick, clear errors, stop policy.
+message ResetCommand {
+  string token = 1;
+}

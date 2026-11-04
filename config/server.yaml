@@ -3,13 +3,37 @@ transports:
   ws: true
   serial: false
   bluetooth: false
-  udp: true               # App gamepad → rp_server UDP channel
+  udp: false              # Legacy paths cannot participate in control leases.
 
 server:
   host: "0.0.0.0"
   port: 9000
   # true: skip hardware pybind, push synthetic telemetry (dev / CI)
   mock: false
+
+auth:
+  # Native WS/HTTP clients send Authorization: Bearer $RP_SERVICE_TOKEN.
+  # Configure a random token (>=32 chars) in the protected service environment.
+  # Paired App JWTs also work. No localhost authentication bypass.
+  service_scopes: [read, control, admin]  # admin lets the local MCP service use reset.
+
+control:
+  lease_ttl_s: 3.0
+  input_timeout_s: 0.5    # Heartbeats do not renew control-frame freshness.
+
+robot:
+  # ROS 2 package name uses underscores (roboparty_inference). {policy} is
+  # replaced by the validated PolicyCommand.name; keep robot in sync with
+  # /opt/roboparty/share/roboparty_inference/robots/<robot>/robot.yaml.
+  launch_cmd: "ros2 launch roboparty_inference inference.launch.py robot:=rpo policy:={policy}"
+  # STATE_RUNNING is returned only after this service is visible.  If ros2 is
+  # not on PATH the probe is skipped and startup falls back to process-only.
+  ready_service: "start_inference"
+  ready_timeout_s: 15
+  # System-wide coordination lock: inference, start/deploy, TUI maintenance and
+  # flashing all use the same path. Keep it on tmpfs so root and robo can open
+  # the same inode without creating /run/lock entries at package time.
+  control_lock: "/dev/shm/roboparty-control.lock"
 
 # 日志配置
 logging:
@@ -20,17 +44,29 @@ logging:
   max_size: 10485760      # 单个日志文件最大大小 (字节), 10MB
   backup_count: 5         # 保留的备份文件数量
 
+# 本机结构化日志服务（hex/roboparty_log_server）；持久 spool，best-effort，不阻塞控制。
+# 可设 enabled: false 或 RP_LOG_SERVER_URL 覆盖/关闭。
+log_server:
+  enabled: true
+  url: "http://127.0.0.1:8092"
+  token: ""               # 或 RP_LOG_TOKEN
+  device_id: ""           # 或 RP_LOG_DEVICE_ID；留空用 hostname
+  device_model: ""        # 或 RP_DEVICE_MODEL
+  firmware_version: ""    # 或 RP_FIRMWARE_VERSION
+  service: "rp_server"
+  level: "INFO"
+  spool_path: ""         # 留空用 logging.dir/log-spool.sqlite3
+  spool_max_events: 10000
+  max_attempts: 20
+  batch_size: 50
+  flush_interval_s: 2.0
+  timeout_s: 5.0
+
 hardware:
   # Normal service stays available in degraded mode when devices are unplugged.
   # Use --require-hardware during hardware acceptance testing.
   required: ["motors", "imu"]
   fail_startup_if_unavailable: false
-
-head:
-  # Two-axis head motors (CAN-FD LRO): motor1 = yaw, motor2 = pitch
-  can_interface: "can123"
-  motor1_id: 1
-  motor2_id: 2
 
 serial:
   port: "/dev/ttyAMA0"
@@ -43,15 +79,42 @@ udp:
   host: "0.0.0.0"
   port: 9000
   auth:
-    secret_key: "your-pre-shared-secret-key"
+    # 生产环境请留空并通过 /etc/rp-server/rp-server.env 的 RP_UDP_SECRET
+    # 或环境变量注入；留空时服务会生成随机密钥（重启后失效）。
+    secret_key: ""
     token_ttl: 3600  # Token有效期（秒）
   session_timeout: 10  # 会话超时（秒）
 
 telemetry:
   imu_hz: 50
   battery_hz: 50
-  motor_hz: 1
-  error_hz: 10
+  motor_hz: 1      # motor states broadcast; sampled together with errors
+  error_hz: 10     # motor_error_push broadcast
+
+tls:
+  # WSS/TLS for /ws-json (and /ws). v2 requires TLS; a self-signed
+  # certificate with local SANs is generated on first start if missing.
+  enabled: true
+  certfile: "/etc/rp-server/auth/tls.crt"
+  keyfile: "/etc/rp-server/auth/tls.key"
+
+identity:
+  # Per-robot Ed25519 key. Generated on first start; mode 0600.
+  # Never commit this file; provision one per board.
+  device_key: "/etc/rp-server/auth/device.key"
+  # Registered app public keys (0600).
+  apps_path: "/etc/rp-server/auth/apps.json"
+
+tui:
+  # Board-management backend: robopi-tui JSON-RPC (`robopi-tui rpc --protocol 1`).
+  # Motion/telemetry stay in rp_server; this only proxies board tasks/snapshots.
+  enabled: true
+  executable: ""       # autodetect: RP_TUI_BIN, PATH, /opt/roboparty/bin/robopi-tui
+  server: "rp_server"  # injected as RP_TUI_SERVER; appears in TUI backend results
+  timeout_s: 120
+  motor_cache_s: 2.0   # cache motors.get results for /api/status and WHAT_ERRORS
+  identity_cache_s: 60 # cache TUI identity for GET /identity
+  allow_jobs: false    # true enables jobs.start/acknowledge (apt upgrade / HPM flash)
 
 gamepad:
   # Default WS target for on-board bridge
@@ -59,7 +122,7 @@ gamepad:
 
 # can_top is preconfigured by the system for CAN FD: 1 Mbps nominal, 5 Mbps data
 can_gamepad:
-  enabled: true
+  enabled: false         # Direct legacy input bypasses ownership; use leased WS.
   interface: "can_top"
   can_id: 0x003
   payloads:

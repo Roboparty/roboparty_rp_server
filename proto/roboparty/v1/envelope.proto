@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// Envelope multiplexes every message type over a single channel (one WS
+// connection or one UDP datagram). Direction of each body is noted; a
+// transport MAY reject bodies of the wrong direction.
+//
+// Field numbers are grouped by direction and reserved ranges are left open.
+// Evolution rules: NEVER reuse a field number; add new bodies at the end of
+// the relevant range; deprecate with `reserved`.
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+import "roboparty/v1/common.proto";
+import "roboparty/v1/commands.proto";
+import "roboparty/v1/responses.proto";
+import "roboparty/v1/telemetry.proto";
+import "roboparty/v1/auth.proto";
+
+message Envelope {
+  Header header = 1;
+  reserved 13;  // was HeadCommand; rp_server no longer controls head motors.
+
+  oneof body {
+    // ---- client -> server (10..29) ----
+    ControlFrame control = 10;
+    Joystick joystick = 11;
+    ButtonEvent button = 12;
+    PolicyCommand policy_command = 14;
+    SkillAction skill_action = 15;
+    Query query = 16;
+    ResetCommand reset = 17;
+    AuthRequest auth_request = 18;
+    ChallengeResponse challenge_response = 19;
+    Heartbeat heartbeat = 20;
+    StopRequest stop = 21;
+
+    // ---- server -> client (30..59) ----
+    ConnResponse conn = 30;
+    ButtonAck button_ack = 31;
+    SysInfoResponse sysinfo = 32;
+    PolicyResponse policy_response = 33;
+    MotorErrors motor_errors = 34;
+    ResetResponse reset_response = 35;
+    Challenge challenge = 36;
+    AuthResult auth_result = 37;
+    StopAck stop_ack = 38;
+    ImuSample imu = 40;
+    BatteryState battery = 41;
+    MotorStates motors = 42;
+    MotorErrorPush motor_error_push = 43;
+    Error error = 44;
+  }
+
+  reserved 100 to 199;  // reserved for future extensions / experiments
+}

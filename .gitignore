@@ -28,3 +28,6 @@ debian/.debhelper/
 
 # runtime logs
 logs/
+
+# proto wheel
+dist/

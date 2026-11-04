@@ -12,7 +12,7 @@ import struct
 import time
 from typing import Any, Optional
 
-from ..protocol.at_parser import AtCommand
+from roboparty.v1 import commands_pb2, envelope_pb2
 
 logger = logging.getLogger("rp_server.can_joy")
 
@@ -46,7 +46,7 @@ class CANJoyListener:
 
     def __init__(
         self,
-        at_handler: Any,
+        handler: Any,
         interface: str = "can_top",
         can_id: int = 0x003,
         payloads: tuple[bytes, ...] = (
@@ -55,7 +55,7 @@ class CANJoyListener:
         ),
         click_ms: int = 50,
     ):
-        self._handler = at_handler
+        self._handler = handler
         self._interface = interface
         self._can_id = can_id
         self._payloads = tuple(payloads)
@@ -180,6 +180,12 @@ class CANJoyListener:
 
     async def _dispatch_button(self, state: str) -> None:
         self._button_id += 1
-        cmd = AtCommand.parse(f"AT+BTN=lb,{state},{self._button_id}")
-        if cmd is not None:
-            await self._handler.dispatch(cmd)
+        env = envelope_pb2.Envelope()
+        env.header.timestamp_ms = time.time_ns() // 1_000_000
+        env.button.button = commands_pb2.Button.BUTTON_LB
+        env.button.state = (
+            commands_pb2.ButtonState.BUTTON_STATE_DOWN if state == "down"
+            else commands_pb2.ButtonState.BUTTON_STATE_UP
+        )
+        env.button.id = self._button_id
+        await self._handler.handle(env)

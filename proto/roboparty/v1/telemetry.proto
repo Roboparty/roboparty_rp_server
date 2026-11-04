@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// Server -> Client telemetry pushes. Supersedes "@IMU/@BAT/@ERR" text pushes
+// and the UDP "imu"/"battery"/"motors" JSON telemetry.
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+import "roboparty/v1/common.proto";
+import "roboparty/v1/responses.proto";
+
+// @IMU
+message ImuSample {
+  Header header = 1;
+  double w = 2;
+  double x = 3;
+  double y = 4;
+  double z = 5;
+  double gx = 6;
+  double gy = 7;
+  double gz = 8;
+  double ax = 9;
+  double ay = 10;
+  double az = 11;
+  float temperature = 12;
+}
+
+// @BAT
+message BatteryState {
+  Header header = 1;
+  double voltage = 2;
+  double current = 3;
+  double soc = 4;      // percent, 0..100
+  double temp = 5;
+  double capacity = 6;
+  double soh = 7;
+  uint32 cycles = 8;
+  string state = 9;    // pack work_state
+  uint32 protect = 10; // protect_status bitfield
+  uint32 io_state = 11;
+  bool power_on = 12;
+}
+
+// One motor's cached state (read-only snapshot; does not refresh CAN).
+message MotorState {
+  uint32 id = 1;
+  double position = 2;
+  double speed = 3;
+  double torque = 4;
+  double temperature = 5;
+  uint32 error = 6;
+  uint32 mode = 7;
+  uint32 response_count = 8;
+}
+
+// Aggregated motor snapshot (legacy UDP "motors" packet, arrays -> repeated).
+message MotorStates {
+  Header header = 1;
+  repeated MotorState motors = 2;
+}
+
+// @ERR (push)
+message MotorErrorPush {
+  Header header = 1;
+  MotorError error = 2;
+}

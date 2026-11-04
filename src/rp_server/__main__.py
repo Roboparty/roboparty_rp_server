@@ -10,6 +10,8 @@ import uvicorn
 import yaml
 
 from .log_config import setup_logging
+from .log_upload import attach_log_server
+from .auth.tls import ensure_self_signed
 from .transport.ws_server import create_app
 
 
@@ -43,7 +45,7 @@ def _load_config(config_path: str = "") -> dict:
     if not config_path:
         config_path = os.environ.get(
             "RP_ROBOT_CONFIG",
-            "/opt/roboparty/share/roboto-inference/config/robot/robot.yaml",
+            "/opt/roboparty/share/roboparty_inference/robots/rpo/robot.yaml",
         )
     config: dict = {}
     if os.path.isfile(config_path):
@@ -81,7 +83,7 @@ def main():
     parser.add_argument("--config", default="", help="path to inference robot.yaml")
     parser.add_argument("--host", default="")
     parser.add_argument("--port", type=int, default=0)
-    parser.add_argument("--log-level", default="info")
+    parser.add_argument("--log-level", default="")
     parser.add_argument("--log-dir", default="", help="日志目录")
     parser.add_argument("--mock", action="store_true", help="run without hardware drivers")
     parser.add_argument(
@@ -95,11 +97,18 @@ def main():
     _load_dotenv()
     config = _load_config(args.config)
 
-    # 配置日志系统 (命令行参数优先于配置文件)
+    # 配置日志系统 (命令行参数 > 环境变量 > 配置文件 > 默认值)
     log_cfg = config.get("logging", {})
+    log_level = (
+        args.log_level
+        or os.environ.get("RP_LOG_LEVEL", "")
+        or log_cfg.get("level", "INFO")
+    )
+    log_dir = args.log_dir or log_cfg.get("dir", "logs")
+    config.setdefault("logging", {})["dir"] = log_dir
     setup_logging(
-        log_level=args.log_level or log_cfg.get("level", "INFO"),
-        log_dir=args.log_dir or log_cfg.get("dir", "logs"),
+        log_level=log_level,
+        log_dir=log_dir,
         log_file=log_cfg.get("file", "rp_server.log"),
         packet_log_file=log_cfg.get("packet_file", "packets.log"),
         max_bytes=log_cfg.get("max_size", 10 * 1024 * 1024),
@@ -114,16 +123,34 @@ def main():
         config.setdefault("hardware", {})["fail_startup_if_unavailable"] = True
 
     host = args.host or os.environ.get("RP_HOST") or config.get("server", {}).get("host", "0.0.0.0")
-    port = args.port or int(os.environ.get("RP_PORT") or 0) or config.get("server", {}).get("port", 8765)
+    port = args.port or int(os.environ.get("RP_PORT") or 0) or config.get("server", {}).get("port", 9000)
 
+    tls_cfg = config.get("tls", {})
+    tls_kwargs = {}
+    if tls_cfg.get("enabled"):
+        cert = tls_cfg.get("certfile", "")
+        key = tls_cfg.get("keyfile", "")
+        if not cert or not key:
+            raise SystemExit("tls.enabled is set but certfile/keyfile are empty")
+        if not ensure_self_signed(cert, key):
+            raise SystemExit("tls.enabled is set but certfile/keyfile are missing and generation failed")
+        tls_kwargs = {"ssl_certfile": cert, "ssl_keyfile": key}
     app = create_app(config)
     server = uvicorn.Server(uvicorn.Config(
         app,
         host=host,
         port=port,
-        log_level=args.log_level,
+        log_level=str(log_level).lower(),
+        proxy_headers=False,  # Local-only pairing must use the actual socket peer.
+        **tls_kwargs,
     ))
-    server.run()
+    # uvicorn's logging config clears existing handlers; attach after it runs.
+    log_upload = attach_log_server(config)
+    try:
+        server.run()
+    finally:
+        if log_upload is not None:
+            log_upload.close()
     if not server.started:
         raise SystemExit(1)
 

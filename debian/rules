@@ -2,13 +2,19 @@
 %:
 	dh $@
 
+execute_before_dh_auto_configure:
+	python3 scripts/check_python_depends.py
+
 override_dh_install:
 	dh_install
 	chmod 0755 debian/roboparty-rp-server/usr/sbin/rp-server-config
+	chmod 0755 debian/roboparty-rp-server/usr/sbin/rp-server-pair
+	chmod 0755 debian/roboparty-rp-server/usr/sbin/rp-server-gen-tls
+	chmod 0755 debian/roboparty-rp-server/opt/roboparty/share/roboparty-rp-server/scripts/stop_robot.sh
 	# Python package
 	mkdir -p debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server
 	cp -r src/rp_server/*.py \
-		src/rp_server/transport src/rp_server/protocol src/rp_server/drivers \
+		src/rp_server/transport src/rp_server/protocol src/rp_server/drivers src/rp_server/monitors src/rp_server/auth \
 		debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server/
 	find debian/roboparty-rp-server/opt/roboparty/lib/python3/dist-packages/rp_server \
 		-name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true

@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// Session / authentication messages (currently the UDP challenge-response
+// flow in udp_auth.py + udp_session.py). Kept as-is semantically for v1;
+// could later be replaced by real JWT or mTLS (see plan Phase 4).
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+message AuthRequest {
+  string device_id = 1;
+  string device_name = 2;
+}
+
+message Challenge {
+  string challenge_code = 1;
+  int64 timestamp_ms = 2;
+}
+
+message ChallengeResponse {
+  string device_id = 1;
+  string signature = 2;  // HMAC-SHA256 hex over "<device_id>:<challenge_code>"
+}
+
+message AuthResult {
+  bool ok = 1;
+  string token = 2;          // opaque token (future: signed JWT)
+  int64 expires_at_ms = 3;
+  uint32 protocol_version = 4;
+  repeated string features = 5;
+}
+
+message Heartbeat {
+  string token = 1;
+}
+
+// Client-requested software stop.
+// ``status``: "request" = request stop (token required), "clear" = clear the
+// stop latch (token required).  ``request_id`` correlates the final receipt.
+message StopRequest {
+  string token = 1;
+  string status = 2;
+  string request_id = 3;
+}
+
+message StopAck {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_STOPPED = 1;
+    STATE_FAILED = 2;
+  }
+  // "stopped", "failed" or "cleared"; the final receipt is authoritative.
+  string status = 1;
+  string request_id = 2;
+  State state = 3;
+  bool confirmed = 4;
+  string reason = 5;
+  int64 confirmed_at_ms = 6;
+}

@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// RoboParty App <-> rp_server wire contract, v2.
+//
+// Encoding: Protocol Buffers (proto3). Transport is orthogonal:
+//   - WebSocket (RFC 6455): binary frames, negotiated via
+//     Sec-WebSocket-Protocol ("roboparty.v2.proto").
+//   - UDP: legacy transport; disabled by default.
+// v2 is a breaking contract: clients must require protocol_version >= 2.
+//
+// This directory is currently the single source of truth inside
+// roboparty_rp_server. It is planned to move to a shared Roboparty/roboparty_proto
+// repository once the App side consumes the generated bindings.
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+// Common metadata attached to control and telemetry messages.
+message Header {
+  // Sender wall-clock in epoch milliseconds. 0 = unset.
+  int64 timestamp_ms = 1;
+
+  // Per-sender monotonically increasing counter. Used for replay/dedup
+  // (replaces the ad-hoc "sequence" field in the UDP control JSON).
+  uint32 sequence = 2;
+
+  // Optional sender identity (device_id).
+  string device_id = 3;
+}

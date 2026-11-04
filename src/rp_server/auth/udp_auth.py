@@ -17,6 +17,9 @@ from typing import Optional
 
 logger = logging.getLogger("rp_server.udp.auth")
 
+#: Placeholder values that must never be used as a real shared secret.
+_INSECURE_KEYS = {"your-pre-shared-secret-key"}
+
 
 @dataclass
 class TokenInfo:
@@ -35,9 +38,12 @@ class UDPAuthenticator:
             token_ttl: Token 有效期（秒）
         """
         self._secret_key = secret_key or os.environ.get("RP_UDP_SECRET", "")
+        if self._secret_key in _INSECURE_KEYS:
+            logger.warning("UDP secret_key 使用了公开占位值，已忽略并改用随机密钥")
+            self._secret_key = ""
         if not self._secret_key:
             self._secret_key = secrets.token_hex(32)
-            logger.warning("未配置 UDP secret_key，已自动生成随机密钥")
+            logger.warning("未配置 UDP secret_key，已自动生成随机密钥（重启后失效）")
 
         self._token_ttl = token_ttl
         # addr_key → (challenge_code, timestamp)
@@ -98,14 +104,7 @@ class UDPAuthenticator:
             hashlib.sha256,
         ).hexdigest()
 
-        # 调试日志：对比签名
-        logger.info("签名对比: device=%s", device_id)
-        logger.info("  签名输入: %s", sign_input)
-        logger.info("  客户端签名: %s", signature.lower())
-        logger.info("  服务端签名: %s", expected_signature.lower())
-        logger.info("  密钥: %s", self._secret_key[:10] + "...")
-
-        # 验证签名
+        # 注意：签名与密钥属于敏感信息，任何级别都不得写入日志。
         if not hmac.compare_digest(signature.lower(), expected_signature.lower()):
             logger.warning("签名验证失败: device=%s addr=%s", device_id, addr_key)
             return None

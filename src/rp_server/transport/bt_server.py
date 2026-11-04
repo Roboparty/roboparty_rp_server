@@ -2,13 +2,13 @@
 # Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
 # Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
 
-"""Bluetooth transport — AT protocol over RFCOMM."""
+"""Bluetooth transport — length-delimited protobuf frames over RFCOMM."""
 
 import asyncio
 import logging
 import socket
 
-from ..protocol.at_parser import AtCommand
+from ..protocol.codec import StreamDecoder, frame_stream
 
 logger = logging.getLogger("rp_server.bluetooth")
 
@@ -20,10 +20,10 @@ except ImportError:
 
 
 class BTServer:
-    """Async Bluetooth RFCOMM server — one client at a time, line-based AT protocol."""
+    """Async Bluetooth RFCOMM server — one client at a time, framed protobuf."""
 
-    def __init__(self, at_handler, channel: int = 1):
-        self._handler = at_handler
+    def __init__(self, handler, channel: int = 1):
+        self._handler = handler
         self._channel = channel
         self._server: asyncio.AbstractServer | None = None
 
@@ -48,22 +48,20 @@ class BTServer:
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         addr = writer.get_extra_info("peername")
         logger.info("Bluetooth client connected: %s", addr)
+        decoder = StreamDecoder()
         try:
             while True:
-                line = await reader.readline()
-                if not line:
+                chunk = await reader.read(4096)
+                if not chunk:
                     break
-                cmd = AtCommand.parse(line.decode("utf-8", errors="replace").strip())
-                if cmd is None:
-                    continue
-                try:
-                    for resp in await self._handler.dispatch(cmd):
-                        writer.write((resp + "\r\n").encode())
+                for env in decoder.feed(chunk):
+                    for resp in await self._handler.handle(env):
+                        writer.write(frame_stream(resp))
                         await writer.drain()
-                except Exception as exc:
-                    logger.warning("Bluetooth AT error: %s", exc)
         except (ConnectionResetError, asyncio.IncompleteReadError):
             pass
+        except ValueError as exc:
+            logger.warning("Bluetooth framing error: %s", exc)
         except Exception as exc:
             logger.warning("Bluetooth client error: %s", exc)
         finally:

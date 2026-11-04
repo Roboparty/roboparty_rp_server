@@ -1,9 +1,15 @@
 # RoboParty RP Server — default environment
 RP_HOST=0.0.0.0
-RP_PORT=8765
+RP_PORT=9000
 RP_LOG_LEVEL=info
 RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty_inference/robots/rpo/robot.yaml
 RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
+RP_STOP_SCRIPT=/opt/roboparty/share/roboparty-rp-server/scripts/stop_robot.sh
+# Per-robot Ed25519 key (generated on first start, mode 0600).
+# RP_DEVICE_KEY=/etc/rp-server/auth/device.key
 
 # Production service intentionally has no RP_MOCK setting.
 # Secrets belong in /etc/rp-server/rp-server.env (mode 0600), not here.
+# RP_SERVICE_TOKEN=<random value of at least 32 characters>
+# Native WS/HTTP clients must send this as a Bearer credential. Paired JWTs
+# are also accepted. auth.service_scopes defaults to read/control, not admin.

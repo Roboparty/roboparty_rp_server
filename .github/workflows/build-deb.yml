@@ -53,14 +53,33 @@ jobs:
           VERSION=$(dpkg-parsechangelog -S Version | cut -d'-' -f1 || echo "unknown")
           echo "PKG_VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Set up Python for proto wheel
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build roboparty-proto wheel
+        run: |
+          python3 -m pip install --upgrade build
+          python3 scripts/build_proto_wheel.py
+          ls -l dist/*.whl
+
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: roboparty-rp-server-v${{ env.PKG_VERSION }}-all
           path: "*.deb"
 
+      - name: Upload proto wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roboparty-proto
+          path: "dist/*.whl"
+
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: "*.deb"
+          files: |
+            *.deb
+            dist/*.whl

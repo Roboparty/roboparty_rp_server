@@ -18,7 +18,6 @@ class AppState:
     bms: Any = None
     joy: Any = None
     policy: Any = None
-    head: Any = None
-    at_handler: Any = None
+    handler: Any = None
     telemetry: Any = None
     mock: bool = False

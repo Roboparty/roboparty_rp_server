@@ -33,6 +33,7 @@ class MotorDriver:
 
     def __init__(self):
         self._motors: list[MotorInfo] = []
+        self._enabled = False
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -87,7 +88,14 @@ class MotorDriver:
                         motor_type=mtype, motor_model=model,
                         master_id_offset=master_off, motor_zero_offset=zero_off,
                     )
-                    m.init_motor()
+                    # Probe only: read cached state without enabling.  Enabling
+                    # motors is an explicit operator action (inference / lease).
+                    try:
+                        m.get_error_id()
+                        m.get_motor_pos()
+                        m.get_response_count()
+                    except Exception as exc:
+                        logger.warning("motor probe failed id=%s: %s", mid, exc)
                     self._motors.append(MotorInfo(
                         motor=m, motor_id=mid, interface=iface,
                         motor_type=mtype, index=global_idx,
@@ -102,16 +110,46 @@ class MotorDriver:
             return False
 
     def deinit(self):
+        if self._enabled:
+            for mi in self._motors:
+                try:
+                    mi.motor.deinit_motor()
+                except Exception:
+                    pass
+        self._enabled = False
+        self._motors.clear()
+
+    def enable(self) -> bool:
+        """Explicitly enable all motors; caller must hold a control lease."""
+        if not self._motors:
+            return False
+        try:
+            for mi in self._motors:
+                mi.motor.init_motor()
+            self._enabled = True
+            return True
+        except Exception as exc:
+            logger.error("motor enable failed: %s", exc)
+            return False
+
+    def disable(self) -> None:
+        """Disable only if this instance enabled the motors."""
+        if not self._enabled:
+            return
         for mi in self._motors:
             try:
                 mi.motor.deinit_motor()
             except Exception:
                 pass
-        self._motors.clear()
+        self._enabled = False
 
     @property
     def ready(self) -> bool:
         return len(self._motors) > 0
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
 
     # ------------------------------------------------------------------
     # Errors
@@ -135,13 +173,16 @@ class MotorDriver:
         states = []
         for mi in self._motors:
             try:
+                code = int(mi.motor.get_error_id())
                 states.append({
                     "id": mi.motor_id,
                     "position": round(float(mi.motor.get_motor_pos()), 4),
                     "speed": round(float(mi.motor.get_motor_spd()), 4),
                     "torque": round(float(mi.motor.get_motor_current()), 4),
                     "temperature": round(float(mi.motor.get_motor_temperature()), 1),
-                    "error": int(mi.motor.get_error_id()),
+                    "error": code,
+                    "name": self._error_name(mi.motor_type, code),
+                    "type": mi.motor_type,
                     "mode": int(mi.motor.get_motor_control_mode()),
                     "response_count": int(mi.motor.get_response_count()),
                 })

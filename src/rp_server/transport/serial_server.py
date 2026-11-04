@@ -2,7 +2,7 @@
 # Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
 # Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
 
-"""Serial transport — AT protocol over UART."""
+"""Serial transport — length-delimited protobuf frames over UART."""
 
 import asyncio
 import logging
@@ -13,20 +13,19 @@ try:
 except ImportError:
     HAS_SERIAL = False
 
-from ..protocol.at_parser import AtCommand
+from ..protocol.codec import StreamDecoder, frame_stream
 
 logger = logging.getLogger("rp_server.serial")
 
 
-class SerialATServer:
-    """Async serial port server — one client per port, line-based AT protocol."""
+class SerialServer:
+    """Async serial port server — one client per port, framed protobuf."""
 
-    def __init__(self, port: str, baudrate: int, at_handler):
+    def __init__(self, port: str, baudrate: int, handler):
         self._port = port
         self._baudrate = baudrate
-        self._handler = at_handler
+        self._handler = handler
         self._transport = None
-        self._buffer = b""
 
     async def start(self):
         if not HAS_SERIAL:
@@ -52,32 +51,28 @@ class SerialATServer:
 
 
 class _SerialProtocol(asyncio.Protocol):
-    def __init__(self, at_handler):
-        self._handler = at_handler
-        self._buffer = b""
+    def __init__(self, handler):
+        self._handler = handler
+        self._transport = None
+        self._decoder = StreamDecoder()
 
     def connection_made(self, transport):
         self._transport = transport
         logger.info("serial client connected")
 
     def data_received(self, data: bytes):
-        self._buffer += data
-        while b"\n" in self._buffer:
-            line, self._buffer = self._buffer.split(b"\n", 1)
-            self._handle_line(line.decode("utf-8", errors="replace").strip())
+        try:
+            for env in self._decoder.feed(data):
+                asyncio.ensure_future(self._dispatch(env))
+        except ValueError as exc:
+            logger.warning("serial framing error: %s", exc)
 
     def connection_lost(self, exc):
         logger.info("serial client disconnected")
 
-    def _handle_line(self, line: str):
-        cmd = AtCommand.parse(line)
-        if cmd is None:
-            return
-        asyncio.ensure_future(self._dispatch(cmd))
-
-    async def _dispatch(self, cmd: AtCommand):
+    async def _dispatch(self, env):
         try:
-            for resp in await self._handler.dispatch(cmd):
-                self._transport.write((resp + "\r\n").encode())
+            for resp in await self._handler.handle(env):
+                self._transport.write(frame_stream(resp))
         except Exception as exc:
-            logger.warning("serial AT error: %s", exc)
+            logger.warning("serial command error: %s", exc)

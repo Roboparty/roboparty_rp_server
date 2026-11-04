@@ -1,0 +1,80 @@
+name: Protobuf contract
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Regenerate the bindings and fail if the checked-in copies are stale.
+  bindings-drift:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install protoc toolchain
+        # grpcio-tools 1.51.1 bundles protoc 3.21.x, matching the board's
+        # python3-protobuf 4.21.12. Keep this pin in sync with scripts/gen_proto.sh.
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "grpcio-tools==1.51.1"
+
+      - name: Regenerate bindings
+        run: ./scripts/gen_proto.sh
+
+      - name: Check bindings are up to date
+        run: |
+          if ! git diff --quiet -- src/rp_server/protocol/gen; then
+            echo "::error::Generated protobuf bindings are stale. Run scripts/gen_proto.sh and commit the result."
+            git --no-pager diff -- src/rp_server/protocol/gen
+            exit 1
+          fi
+          echo "Generated bindings match proto/"
+
+  # Cheap static gate: every module must at least byte-compile, and shell
+  # helpers must parse. Board-only imports (motors_py, imu_py, evdev, ...) are
+  # optional at import time by design.
+  syntax:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Byte-compile Python
+        run: |
+          python3 -m compileall -q src/rp_server tests
+          python3 -m py_compile scripts/rp-server-pair scripts/rp-server-gen-tls scripts/build_proto_wheel.py
+
+      - name: Check shell syntax
+        run: bash -n scripts/stop_robot.sh scripts/gen_proto.sh scripts/rp-server-config
+
+  # Load the generated bindings under the exact board runtime (Ubuntu noble,
+  # python3-protobuf 4.21.12) and run the unit tests with it.
+  board-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install board-runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-protobuf python3-pytest python3-pytest-asyncio \
+            python3-cryptography python3-fastapi python3-httpx python3-psutil \
+            python3-yaml python3-websockets
+
+      - name: Verify protobuf version
+        run: python3 -c "import google.protobuf; print('protobuf', google.protobuf.__version__)"
+
+      - name: Run tests
+        run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -p pytest_asyncio.plugin tests/ -q

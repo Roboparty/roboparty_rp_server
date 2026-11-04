@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: GPL-3.0
+// Copyright (C) 2026 mustaf-osman (https://github.com/mustaf-osman)
+// Copyright (C) 2026 wentywenty (https://github.com/wentywenty)
+//
+// Server -> Client responses (replies to commands/queries).
+
+syntax = "proto3";
+
+package roboparty.v1;
+
+import "roboparty/v1/common.proto";
+
+enum ResponseStatus {
+  RESPONSE_STATUS_UNSPECIFIED = 0;
+  RESPONSE_STATUS_OK = 1;
+  RESPONSE_STATUS_FAIL = 2;
+}
+
+message ConnResponse {
+  bool connected = 1;
+  bool hardware_ok = 2;
+  uint32 protocol_version = 3;
+  repeated string features = 4;
+}
+
+message ButtonAck {
+  uint32 id = 1;
+  ResponseStatus status = 2;
+  Header header = 3;
+}
+
+message SysInfoResponse {
+  float cpu_percent = 1;
+  float mem_percent = 2;
+  repeated float load_avg = 3;  // 1 / 5 / 15 min
+}
+
+message PolicyResponse {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_RUNNING = 1;
+    STATE_STOPPED = 2;
+    STATE_FAIL = 3;
+    STATE_STARTING = 4;
+    STATE_STOPPING = 5;
+    STATE_UNKNOWN = 6;
+  }
+  string name = 1;
+  State state = 2;
+  uint32 pid = 3;
+  int32 exit_code = 4;
+  string message = 5;
+  bool ready = 6;
+  int64 updated_at_ms = 7;
+}
+
+message MotorError {
+  uint32 motor_id = 1;
+  uint32 code = 2;
+  string name = 3;   // decoded error name, e.g. "UNDERVOLTAGE"
+  string type = 4;   // DM / EVO / LRO / XYN
+}
+
+message MotorErrors {
+  Header header = 1;
+  repeated MotorError errors = 2;  // empty = no errors (legacy "+ERR: none")
+}
+
+message ResetResponse {
+  ResponseStatus status = 1;
+}
+
+// Generic error for malformed/unauthorized messages.
+message Error {
+  uint32 code = 1;
+  string message = 2;
+}

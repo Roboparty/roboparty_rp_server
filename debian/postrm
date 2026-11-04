@@ -1,5 +1,16 @@
 #!/bin/bash
 set -e
 
-systemctl disable rp-server.service || true
-systemctl stop rp-server.service || true
+case "${1:-}" in
+    remove|purge)
+        systemctl stop rp-server.service rp-btwifi.service || true
+        systemctl disable rp-server.service rp-btwifi.service || true
+        systemctl daemon-reload || true
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument: ${1:-}" >&2
+        exit 1
+        ;;
+esac

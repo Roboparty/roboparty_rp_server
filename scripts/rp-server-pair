@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0
+# Copyright (C) 2026 RoboParty
+
+"""Local pairing helper for rp_server.
+
+Run on the robot (localhost only):
+
+    rp-server-pair code                 # one-time pairing code (5 min)
+    rp-server-pair list                 # registered app keys
+    rp-server-pair revoke <appKeyId>    # revoke one app key
+
+The app sends the code and its public key to ``POST /pair/register``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import ssl
+import sys
+import urllib.error
+import urllib.request
+
+BASE = os.environ.get("RP_SERVER_URL", "https://127.0.0.1:9000")
+TLS_CERT = os.environ.get("RP_TLS_CERT", "/etc/rp-server/auth/tls.crt")
+
+
+def call(path: str, payload=None):
+    data = None if payload is None else json.dumps(payload).encode()
+    request = urllib.request.Request(
+        BASE + path, data=data, method="POST" if payload is not None else "GET",
+        headers={"Content-Type": "application/json"},
+    )
+    context = None
+    if BASE.startswith("https://") and os.path.isfile(TLS_CERT):
+        context = ssl.create_default_context(cafile=TLS_CERT)
+    try:
+        with urllib.request.urlopen(request, timeout=10, context=context) as response:
+            return json.loads(response.read().decode())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")
+        try:
+            parsed = json.loads(detail)
+            error = parsed.get("error", {})
+            raise SystemExit(f"{error.get('code', exc.code)}: {error.get('message', detail)}")
+        except ValueError:
+            raise SystemExit(f"HTTP {exc.code}: {detail}")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("code", help="generate a one-time pairing code")
+    sub.add_parser("list", help="list registered app keys")
+    revoke = sub.add_parser("revoke", help="revoke an app key")
+    revoke.add_argument("app_key_id")
+    args = parser.parse_args(argv)
+
+    if args.command == "code":
+        result = call("/pair/code", {})
+        print(f"pair code: {result['code']}  (expires in {result['ttl']}s)")
+        payload = result.get("payload") or {}
+        if payload.get("tlsSpkiSha256"):
+            print(f"tls spki:  {payload['tlsSpkiSha256']}")
+        if result.get("uri"):
+            print(f"pair uri:  {result['uri']}")
+            print("           (render this URI as a QR code or label)")
+        print("pair json: " + json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    elif args.command == "list":
+        for app in call("/pair/apps").get("apps", []):
+            state = "revoked" if app.get("revoked") else "active"
+            print(f"{app.get('appKeyId')}  {state}  {app.get('deviceName', '')}")
+    else:
+        result = call("/pair/revoke", {"appKeyId": args.app_key_id})
+        print("revoked" if result.get("ok") else "not found")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

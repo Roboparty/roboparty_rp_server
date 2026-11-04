@@ -2,7 +2,7 @@ Source: roboparty-rp-server
 Section: misc
 Priority: optional
 Maintainer: RoboParty <2321901849@qq.com>
-Build-Depends: debhelper-compat (= 13)
+Build-Depends: debhelper-compat (= 13), python3
 Standards-Version: 4.6.0
 
 Package: roboparty-rp-server
@@ -11,17 +11,22 @@ Depends: roboparty-base (>= 1.0.0),
          roboparty-motors (>= 1.0.0),
          roboparty-imu (>= 1.0.0),
          roboparty-bms (>= 1.0.0),
+         robopi-tui (>= 1.1.2),
          python3,
          python3-fastapi,
          python3-uvicorn,
          python3-websockets,
+         python3-protobuf (>= 4.21.12),
          python3-yaml,
+         python3-cryptography,
+         python3-jwt,
          python3-psutil,
          python3-evdev,
-         python3-serial,
+         python3-serial-asyncio,
          ${misc:Depends}
+Recommends: python3-bluez
 Description: RoboParty unified web backend server
- FastAPI + WebSocket server providing AT-command protocol for
- gamepad, Android app, head unit, MCP, and backpack clients.
- Streams IMU, battery, motor errors and manages policy execution.
- Runs on the RK3588 robot controller.
+ FastAPI + WebSocket server providing the roboparty.v1 protobuf
+ protocol for gamepad, Android app, head unit, MCP, and backpack
+ clients. Streams IMU, battery, motor errors and manages policy
+ execution. Runs on the RK3588 robot controller.

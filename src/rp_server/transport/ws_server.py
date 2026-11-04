@@ -276,11 +276,17 @@ def create_app(config: dict) -> FastAPI:
             response.header.timestamp_ms = _now_ms()
             response.stop_ack.request_id = request_id
             response.stop_ack.confirmed_at_ms = _now_ms()
+            # rp_server can confirm the software stop only. Motor power-off and
+            # a physical E-stop are separate states; report them as unknown
+            # until a verified source exists.
+            response.stop_ack.motor_state = "unknown"
+            response.stop_ack.estop_state = "unknown"
             if env.stop.status == "clear":
                 await lease.clear_stop()
                 response.stop_ack.status = "cleared"
                 response.stop_ack.state = auth_pb2.StopAck.STATE_STOPPED
                 response.stop_ack.confirmed = True
+                response.stop_ack.software_stopped = False
                 response.stop_ack.reason = "software stop latch cleared"
             else:
                 try:
@@ -289,11 +295,14 @@ def create_app(config: dict) -> FastAPI:
                     response.stop_ack.status = "stopped"
                     response.stop_ack.state = auth_pb2.StopAck.STATE_STOPPED
                     response.stop_ack.confirmed = True
-                    response.stop_ack.reason = "process exited and stop confirmed"
+                    response.stop_ack.software_stopped = True
+                    response.stop_ack.reason = (
+                        "software stop confirmed; motor/e-stop state not verified")
                 except ControlError as exc:
                     response.stop_ack.status = "failed"
                     response.stop_ack.state = auth_pb2.StopAck.STATE_FAILED
                     response.stop_ack.confirmed = False
+                    response.stop_ack.software_stopped = False
                     response.stop_ack.reason = str(exc)
             return [response]
         return await lease.dispatch(session, env, lambda: access.verify(token, scope))

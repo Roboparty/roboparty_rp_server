@@ -59,4 +59,13 @@ message StopAck {
   bool confirmed = 4;
   string reason = 5;
   int64 confirmed_at_ms = 6;
+  // True only when the software stop path completed. It does not prove motor
+  // power-off, motion stop at the driver, or a physical E-stop.
+  bool software_stopped = 7;
+  // "disabled", "enabled" or "unknown". Use "unknown" when the server cannot
+  // verify the hardware state.
+  string motor_state = 8;
+  // "asserted", "released" or "unknown". Use "unknown" when no E-stop input
+  // is available.
+  string estop_state = 9;
 }

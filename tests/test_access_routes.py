@@ -132,6 +132,39 @@ def test_json_and_native_share_lease_and_reconnect_is_unarmed(app):
             assert text(ws)["code"] == "LEASE_REQUIRED"
 
 
+def test_json_ws_accepts_service_token_without_challenge(tmp_path, monkeypatch):
+    service_token = "s" * 40
+    monkeypatch.setenv("RP_SERVICE_TOKEN", service_token)
+    monkeypatch.delenv("RP_DEVICE_KEY", raising=False)
+    app = create_app({"server": {"mock": True}, "transports": {},
+                      "tui": {"enabled": False},
+                      "identity": {"device_key": str(tmp_path / "key"),
+                                   "apps_path": str(tmp_path / "apps.json")}})
+    app.state.rp.joy.reset = Mock()
+    app.state.rp.motors.clear_errors = Mock()
+    app.state.rp.policy.stop = AsyncMock()
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws-json", headers=headers(service_token)) as ws:
+            result = text(ws)
+            assert result["type"] == "auth_result"
+            assert result["ok"] is True
+            assert result["token"] == service_token
+
+
+def test_json_ws_rejects_bad_service_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("RP_SERVICE_TOKEN", "s" * 40)
+    monkeypatch.delenv("RP_DEVICE_KEY", raising=False)
+    app = create_app({"server": {"mock": True}, "transports": {},
+                      "tui": {"enabled": False},
+                      "identity": {"device_key": str(tmp_path / "key"),
+                                   "apps_path": str(tmp_path / "apps.json")}})
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws-json", headers=headers("invalid")) as ws:
+            result = text(ws)
+            assert result["type"] == "auth_result"
+            assert result["ok"] is False
+
+
 def test_revocation_closes_idle_session(app):
     _, subject, token = identity(app)
     with TestClient(app) as client:

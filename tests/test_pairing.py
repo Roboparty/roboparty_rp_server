@@ -59,3 +59,29 @@ def test_revoke_and_invalid_key(tmp_path):
     listed = manager.list_apps()
     assert listed[0]['revoked'] is True
     assert manager.revoke('missing') is False
+
+
+def test_single_owner_replaces_previous_user_key(tmp_path):
+    manager = PairingManager(tmp_path / 'apps.json', single_owner=True)
+    first = manager.register(manager.generate_code()['code'], app_public_key(), 'old-phone')
+    second = manager.register(manager.generate_code()['code'], app_public_key(), 'new-phone')
+
+    assert second['replaced'] == [first['appKeyId']]
+    old = manager.get_app(first['appKeyId'])
+    assert old['revoked'] is True
+    assert old['revokedReason'] == 'replaced-by-new-pairing'
+    assert old['replacedBy'] == second['appKeyId']
+    assert manager.get_app(second['appKeyId'])['revoked'] is False
+
+
+def test_single_owner_preserves_admin_key(tmp_path):
+    path = tmp_path / 'apps.json'
+    manager = PairingManager(path, single_owner=True, preserve_admin=True)
+    admin = manager.register(manager.generate_code()['code'], app_public_key(), 'admin')
+    stored = json.loads(path.read_text())
+    stored[admin['appKeyId']]['scopes'].append('admin')
+    path.write_text(json.dumps(stored))
+
+    user = manager.register(manager.generate_code()['code'], app_public_key(), 'user')
+    assert manager.get_app(admin['appKeyId'])['revoked'] is False
+    assert manager.get_app(user['appKeyId'])['revoked'] is False

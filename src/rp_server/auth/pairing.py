@@ -75,10 +75,13 @@ def _key_info(public_key_b64: str) -> tuple[str, str]:
 
 class PairingManager:
     def __init__(self, apps_path: Path = DEFAULT_APPS, ttl: int = CODE_TTL,
-                 now=time.time):
+                 now=time.time, single_owner: bool = False,
+                 preserve_admin: bool = True):
         self.apps_path = Path(apps_path)
         self.ttl = ttl
         self._now = now
+        self.single_owner = bool(single_owner)
+        self.preserve_admin = bool(preserve_admin)
         self._lock = threading.Lock()
         self._codes: dict[str, dict] = {}
 
@@ -121,6 +124,19 @@ class PairingManager:
             entry["attempts"] += 1
             key_id, normalized = _key_info(public_key)
             apps = self._load_apps()
+            replaced = []
+            if self.single_owner:
+                for other_id, other in apps.items():
+                    if other_id == key_id or other.get("revoked"):
+                        continue
+                    if self.preserve_admin and "admin" in set(other.get("scopes") or []):
+                        continue
+                    other["revoked"] = True
+                    other["revokedAt"] = datetime.datetime.now(
+                        datetime.timezone.utc).isoformat()
+                    other["revokedReason"] = "replaced-by-new-pairing"
+                    other["replacedBy"] = key_id
+                    replaced.append(other_id)
             app = {
                 "appKeyId": key_id,
                 "publicKey": normalized,
@@ -132,8 +148,11 @@ class PairingManager:
             apps[key_id] = app
             self._save_apps(apps)
             del self._codes[code]
-            logger.info("paired app %s (%s)", key_id, device_name[:40])
-            return app
+            logger.info("paired app %s (%s); replaced=%d", key_id,
+                        device_name[:40], len(replaced))
+            public_app = dict(app)
+            public_app["replaced"] = replaced
+            return public_app
 
     def get_app(self, app_key_id: str) -> Optional[dict]:
         with self._lock:

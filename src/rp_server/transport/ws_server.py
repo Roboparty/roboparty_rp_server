@@ -162,8 +162,14 @@ def create_app(config: dict) -> FastAPI:
     tui_cfg = config.get("tui", {})
     tui = TuiBackend(tui_cfg)
     identity_cfg = config.get("identity", {})
+    pairing_cfg = config.get("pairing", {})
     device_identity = identity_fields(identity_cfg)
-    pairing = PairingManager(identity_cfg.get("apps_path") or "/etc/rp-server/auth/apps.json")
+    software_sn_path = Path(identity_cfg.get("software_sn") or "/etc/roboparty/robot-sn")
+    pairing = PairingManager(
+        identity_cfg.get("apps_path") or "/etc/rp-server/auth/apps.json",
+        single_owner=bool(pairing_cfg.get("single_owner", False)),
+        preserve_admin=bool(pairing_cfg.get("preserve_admin", True)),
+    )
     app.state.pairing = pairing
     try:
         jwt_key = load_or_create(Path(identity_cfg.get("device_key") or os.environ.get("RP_DEVICE_KEY") or DEFAULT_PATH))
@@ -555,6 +561,12 @@ def create_app(config: dict) -> FastAPI:
         return JSONResponse({"error": {"code": exc.code, "message": str(exc)}},
                             status_code=status)
 
+    def _read_software_sn() -> str:
+        try:
+            return software_sn_path.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            return ""
+
     def _pair_payload(result: dict, identity: dict) -> dict:
         data = {
             "version": 1,
@@ -563,6 +575,7 @@ def create_app(config: dict) -> FastAPI:
             "tlsEnabled": bool(tls_cfg.get("enabled")),
             "tlsSpkiSha256": tls_spki,
             "deviceSpkiSha256": identity.get("spkiSha256"),
+            "softwareSn": _read_software_sn(),
             "serial": identity.get("serial", ""),
             "machineId": identity.get("machineId", ""),
         }
@@ -748,42 +761,56 @@ def create_app(config: dict) -> FastAPI:
     @app.websocket("/ws-json")
     async def ws_json(ws: WebSocket):
         await ws.accept()
-        if jwt_key is None:
-            await _auth_fail(ws, "server identity unavailable")
-            return
-        try:
-            first = await asyncio.wait_for(ws.receive_json(), 10)
-        except Exception:
-            await _auth_fail(ws, "auth request required")
-            return
-        if not isinstance(first, dict) or first.get("type") != "auth_request":
-            await _auth_fail(ws, "auth request required")
-            return
-        app_key_id = str(first.get("device_id", "")).strip()
-        app = pairing.get_app(app_key_id) if app_key_id else None
-        if not app or app.get("revoked"):
-            await _auth_fail(ws, "app key is not paired or was revoked")
-            return
-        challenge = secrets.token_hex(16)
-        await ws.send_json({"type": "challenge", "challenge_code": challenge,
-                            "timestamp": _now_ms()})
-        try:
-            response = await asyncio.wait_for(ws.receive_json(), 10)
-        except Exception:
-            await _auth_fail(ws, "challenge response timeout")
-            return
-        if (not isinstance(response, dict)
-                or response.get("type") != "challenge_response"
-                or str(response.get("device_id", "")) != app_key_id
-                or not verify_app_signature(app, f"{app_key_id}:{challenge}",
-                                            str(response.get("signature", "")))):
-            await _auth_fail(ws, "invalid challenge signature")
-            return
-        scopes = list(app.get("scopes", []))
-        if "read" not in scopes:
-            await _auth_fail(ws, "read scope required")
-            return
-        session_token, expires_ms = issue_token(jwt_key, app_key_id, scopes)
+        direct_token = None
+        header = ws.headers.get("authorization")
+        if header:
+            try:
+                direct_token = access.bearer(header)
+                access.verify(direct_token, "read")
+            except AuthError as exc:
+                await _auth_fail(ws, str(exc))
+                return
+        if direct_token is not None:
+            session_token = direct_token
+            expires_ms = 0
+            app_key_id = "local-service"
+        else:
+            if jwt_key is None:
+                await _auth_fail(ws, "server identity unavailable")
+                return
+            try:
+                first = await asyncio.wait_for(ws.receive_json(), 10)
+            except Exception:
+                await _auth_fail(ws, "auth request required")
+                return
+            if not isinstance(first, dict) or first.get("type") != "auth_request":
+                await _auth_fail(ws, "auth request required")
+                return
+            app_key_id = str(first.get("device_id", "")).strip()
+            app = pairing.get_app(app_key_id) if app_key_id else None
+            if not app or app.get("revoked"):
+                await _auth_fail(ws, "app key is not paired or was revoked")
+                return
+            challenge = secrets.token_hex(16)
+            await ws.send_json({"type": "challenge", "challenge_code": challenge,
+                                "timestamp": _now_ms()})
+            try:
+                response = await asyncio.wait_for(ws.receive_json(), 10)
+            except Exception:
+                await _auth_fail(ws, "challenge response timeout")
+                return
+            if (not isinstance(response, dict)
+                    or response.get("type") != "challenge_response"
+                    or str(response.get("device_id", "")) != app_key_id
+                    or not verify_app_signature(app, f"{app_key_id}:{challenge}",
+                                                str(response.get("signature", "")))):
+                await _auth_fail(ws, "invalid challenge signature")
+                return
+            scopes = list(app.get("scopes", []))
+            if "read" not in scopes:
+                await _auth_fail(ws, "read scope required")
+                return
+            session_token, expires_ms = issue_token(jwt_key, app_key_id, scopes)
         await ws.send_json({"type": "auth_result", "ok": True,
                             "token": session_token, "expires_at": expires_ms,
                             "protocol_version": PROTOCOL_VERSION,

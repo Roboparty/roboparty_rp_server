@@ -40,16 +40,19 @@ board, `grpcio-tools` on the build host). The generated bindings under
 | GET | `/api/status` | Full hardware snapshot |
 | GET | `/sysinfo` | CPU / memory / load |
 | WS | `/ws` | Bearer authentication; protobuf binary commands and JSON lease management |
-| WS | `/ws-json` | App JSON control/telemetry; app-key challenge + JWT; v2 requires WSS |
+| WS | `/ws-json` | App/diagnostic JSON control/telemetry; Bearer token or app-key challenge; v2 requires WSS |
 
 ### Pairing (v2 URI / TLS pin)
 
 - On the robot: `rp-server-pair code` → 6-digit code plus a
   `roboparty://pair?data=...` URI containing `tlsSpkiSha256`,
-  `deviceSpkiSha256`, SN and a device-key signature (TTL 5 min, localhost only).
+  `deviceSpkiSha256`, board serial, software SN and a device-key signature
+  (TTL 5 min, localhost only).
 - App: Settings → 授权与绑定 → paste the URI (or scan its QR) → save the TLS
   pin locally → `POST /pair/register` with `{code, appPublicKey, deviceName}`.
 - v2 clients reject trust-all, skip-hostname-verification and plaintext control.
+- Default `pairing.single_owner: true`: a successful new pairing revokes old
+  user app keys (`replaced-by-new-pairing`); admin-scoped keys are preserved.
 - Registered keys live in `/etc/rp-server/auth/apps.json` (0600):
   `rp-server-pair list` / `rp-server-pair revoke <appKeyId>`.
 - `POST /pair/code`, `GET /pair/apps`, `POST /pair/revoke` are localhost-only;
@@ -61,9 +64,11 @@ board, `grpcio-tools` on the build host). The generated bindings under
   `Envelope` internally.
   `left_stick_x/y` is mirrored onto `AXIS_RX/RY` when the right stick is centered,
   so the app's primary touch stick drives translation.
-- Auth: `auth_request` (`device_id` = paired `appKeyId`) → `challenge` →
-  `challenge_response` (ECDSA/Ed25519 signature over `<appKeyId>:<challenge>`) →
-  `auth_result` with a short-lived JWT (EdDSA, scopes `read control`).
+- Auth: a valid `Authorization: Bearer` (local service token or unrevoked App
+  JWT) is accepted directly. Without a header, clients use `auth_request`
+  (`device_id` = paired `appKeyId`) → `challenge` → `challenge_response`
+  (ECDSA/Ed25519 signature over `<appKeyId>:<challenge>`) → `auth_result` with a
+  short-lived JWT (EdDSA, scopes `read control`).
 - `tls.enabled: true` runs uvicorn with `ssl_certfile`/`ssl_keyfile`. Generate a
   self-signed cert with `rp-server-gen-tls` (installed from
   `scripts/rp-server-gen-tls`); `/identity.tlsSpkiSha256` is the pin value.
@@ -82,8 +87,9 @@ board, `grpcio-tools` on the build host). The generated bindings under
   `auth.service_scopes` are `[read, control, admin]` so the local MCP service can
   use `reset`; drop `admin` when it is not needed. Never put tokens in URLs. Use
   TLS for network deployment.
-- `/ws-json` retains its signed challenge. Tokens are session-bound; expiry,
-  pairing revocation and reduced local permissions are rechecked during sessions.
+- `/ws-json` accepts a valid Bearer directly and keeps the signed challenge as a
+  fallback. Tokens are session-bound; expiry, pairing revocation and reduced
+  local permissions are rechecked during sessions.
 - After authentication, send text JSON `{"type":"lease.acquire"}`. Both WS
   endpoints reply `{"type":"lease","status":"acquired","ttl_ms":3000,
   "input_timeout_ms":500}`. A competing session receives `CONTROL_BUSY`.

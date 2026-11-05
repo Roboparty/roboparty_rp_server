@@ -123,8 +123,16 @@ identity:
   # Per-robot Ed25519 key. Generated on first start; mode 0600.
   # Never commit this file; provision one per board.
   device_key: "/etc/rp-server/auth/device.key"
+  # QR/software SN written by scripts/provision_software_sn.py.
+  software_sn: "/etc/roboparty/robot-sn"
   # Registered app public keys (0600).
   apps_path: "/etc/rp-server/auth/apps.json"
+
+pairing:
+  # Single-owner: a successful new pairing revokes previous user app keys.
+  # Admin-scoped keys are preserved unless preserve_admin is false.
+  single_owner: true
+  preserve_admin: true
 
 tui:
   # Board-management backend: robopi-tui JSON-RPC (`robopi-tui rpc --protocol 1`).

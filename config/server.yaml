@@ -26,7 +26,7 @@ robot:
   # replaced by the validated PolicyCommand.name; keep robot in sync with
   # /opt/roboparty/share/roboparty_inference/robots/<robot>/robot.yaml.
   # 产品启动统一委托 roboparty-start；--foreground 让 PolicyDriver 管理整个进程组。
-  launch_cmd: "/opt/roboparty/bin/start_robot.sh --foreground --robot rpo --policy {policy}"
+  launch_cmd: "/opt/roboparty/bin/start_robot.sh --foreground --policy {policy}"
   # STATE_RUNNING is returned only after this service is visible. If ros2 is
   # missing or the probe fails, startup fails closed instead of reporting
   # process-only success.

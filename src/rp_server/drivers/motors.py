@@ -13,6 +13,7 @@ try:
     import motors_py
     HAS_MOTORS = True
 except ImportError:
+    motors_py = None
     HAS_MOTORS = False
 
 logger = logging.getLogger("rp_server.motors")

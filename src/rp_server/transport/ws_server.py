@@ -37,6 +37,13 @@ from ..drivers.imu import IMUDriver
 from ..drivers.bms import BMSDriver
 from ..drivers.joy import JoyDriver
 from ..drivers.policy import DEFAULT_LAUNCH_CMD, PolicyDriver, screen_instance_running
+from ..drivers.mock import (
+    MockBmsDriver,
+    MockImuDriver,
+    MockJoyDriver,
+    MockMotorsDriver,
+    MockPolicyDriver,
+)
 from ..drivers.ros_probe import service_ready_check
 from ..monitors import TelemetryMonitor
 from ..monitors.segment import SegmentRecorder
@@ -110,10 +117,16 @@ def create_app(config: dict) -> FastAPI:
                        extra={"event_type": "startup"})
 
     # --- drivers ---
-    motors = MotorDriver()
-    imu = IMUDriver()
-    bms = BMSDriver()
-    joy = JoyDriver()
+    if mock:
+        motors = MockMotorsDriver()
+        imu = MockImuDriver()
+        bms = MockBmsDriver()
+        joy = MockJoyDriver()
+    else:
+        motors = MotorDriver()
+        imu = IMUDriver()
+        bms = BMSDriver()
+        joy = JoyDriver()
     robot_cfg = config.get("robot", {})
     ready_service = str(robot_cfg.get("ready_service", "start_inference"))
     ready_timeout_s = float(robot_cfg.get("ready_timeout_s", 15.0))
@@ -136,16 +149,19 @@ def create_app(config: dict) -> FastAPI:
         buffer_s=seg_cfg.get("buffer_s", 10.0),
         enabled=seg_cfg.get("enabled", True),
     )
-    policy = PolicyDriver(
-        robot_cfg.get("launch_cmd", DEFAULT_LAUNCH_CMD),
-        ready_check=service_ready_check(ready_service),
-        ready_timeout_s=ready_timeout_s,
-        lock_path=control_lock,
-        log_path=os.path.join(log_dir, "policy.log"),
-        lifecycle_cb=segment_recorder.on_lifecycle,
-        developer_mode=developer_mode,
-        instance_check=screen_instance_running,
-    )
+    if mock:
+        policy = MockPolicyDriver()
+    else:
+        policy = PolicyDriver(
+            robot_cfg.get("launch_cmd", DEFAULT_LAUNCH_CMD),
+            ready_check=service_ready_check(ready_service),
+            ready_timeout_s=ready_timeout_s,
+            lock_path=control_lock,
+            log_path=os.path.join(log_dir, "policy.log"),
+            lifecycle_cb=segment_recorder.on_lifecycle,
+            developer_mode=developer_mode,
+            instance_check=screen_instance_running,
+        )
     hardware_cfg = config.get("hardware", {})
     required_hardware = tuple(hardware_cfg.get("required", ("motors", "imu")))
     hardware_status = {
@@ -207,7 +223,7 @@ def create_app(config: dict) -> FastAPI:
         if now - motor_cache["at"] < motor_cache_s:
             return list(motor_cache["rows"])
         if mock:
-            rows = []
+            rows = list(motors.get_errors())
         elif tui.enabled and tui.available:
             try:
                 data = await tui.motor_errors()
@@ -377,7 +393,9 @@ def create_app(config: dict) -> FastAPI:
                 return
 
     # --- monitors ---
-    telemetry = TelemetryMonitor(imu, bms, motors, config, mock=mock, recorder=segment_recorder)
+    # Mock drivers already provide synthetic samples, so the monitor reads the
+    # normal driver path instead of generating a second set of fake values.
+    telemetry = TelemetryMonitor(imu, bms, motors, config, mock=False, recorder=segment_recorder)
 
     rp = AppState(
         config=config,
@@ -446,24 +464,24 @@ def create_app(config: dict) -> FastAPI:
     # --- lifespan ---
     @app.on_event("startup")
     async def on_startup():
-        if not mock:
-            hardware_status.update({
-                "motors": motors.init(config),
-                "imu": imu.init(config),
-                "bms": bms.init(config),
-                "joy": joy.init(),
-            })
-            missing = _missing_hardware(hardware_status, required_hardware)
-            if missing:
-                message = f"required hardware unavailable: {', '.join(missing)}"
-                if hardware_cfg.get("fail_startup_if_unavailable", False):
-                    logger.critical(message)
-                    raise RuntimeError(message)
-                logger.error("%s (service remains degraded)", message)
-            else:
-                logger.info("required hardware ready: %s", ", ".join(required_hardware))
+        hardware_status.update({
+            "motors": motors.init(config),
+            "imu": imu.init(config),
+            "bms": bms.init(config),
+            "joy": joy.init(),
+        })
+        missing = _missing_hardware(hardware_status, required_hardware)
+        if missing:
+            message = f"required hardware unavailable: {', '.join(missing)}"
+            if hardware_cfg.get("fail_startup_if_unavailable", False):
+                logger.critical(message)
+                raise RuntimeError(message)
+            logger.error("%s (service remains degraded)", message)
+        elif mock:
+            logger.info("mock hardware backend ready: %s", ", ".join(required_hardware),
+                        extra={"event_type": "startup"})
         else:
-            logger.info("mock: skipping hardware driver init", extra={"event_type": "startup"})
+            logger.info("required hardware ready: %s", ", ".join(required_hardware))
         await telemetry.start()
         if serial_srv:
             await serial_srv.start()
@@ -491,11 +509,10 @@ def create_app(config: dict) -> FastAPI:
         segment_recorder.close()
         if policy.running:
             await policy.stop()
-        if not mock:
-            joy.deinit()
-            imu.deinit()
-            bms.deinit()
-            motors.deinit()
+        joy.deinit()
+        imu.deinit()
+        bms.deinit()
+        motors.deinit()
 
     # ------------------------------------------------------------------
     # REST API
@@ -503,7 +520,7 @@ def create_app(config: dict) -> FastAPI:
 
     @app.get("/health")
     async def health():
-        ready = True if mock else hardware_ready()
+        ready = hardware_ready()
         return {
             "status": "ok" if ready else "degraded",
             "hw_ready": ready,
@@ -530,7 +547,7 @@ def create_app(config: dict) -> FastAPI:
     @app.get("/api/status")
     async def api_status():
         return JSONResponse({
-            "hw_ready": True if mock else hardware_ready(),
+            "hw_ready": hardware_ready(),
             "hardware": dict(hardware_status),
             "mock": mock,
             "developer_mode": developer_mode,
@@ -948,7 +965,7 @@ def create_app(config: dict) -> FastAPI:
         watch_task = asyncio.create_task(session_watchdog(ws, session, token))
         try:
             await ws.send_bytes(CODEC.encode(
-                _conn_envelope(True, True if mock else hardware_ready())))
+                _conn_envelope(True, hardware_ready())))
             while True:
                 message = await ws.receive()
                 if message["type"] == "websocket.disconnect":

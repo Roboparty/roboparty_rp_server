@@ -1,6 +1,5 @@
 [Unit]
 Description=RoboParty RP Server
-Documentation=file:///opt/roboparty/share/roboparty-rp-server/docs/deploy.md
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -9,17 +8,14 @@ StartLimitIntervalSec=0
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/opt/roboparty/share/roboparty-rp-server
-Environment=PYTHONPATH=/opt/roboparty/lib/python3/vendor-packages:/opt/roboparty/lib/python3/dist-packages
 Environment=PYTHONNOUSERSITE=1
 Environment=PYTHONUNBUFFERED=1
-Environment=RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty_inference/robots/rpo/robot.yaml
-Environment=RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
+EnvironmentFile=-/etc/roboos/env
 EnvironmentFile=-/etc/default/rp-server
 EnvironmentFile=-/etc/rp-server/rp-server.env
 # Do not block startup on the robot YAML: rp_server still serves diagnostics
 # and degrades motion features when the file is missing.
-ExecStart=/usr/bin/python3 -m rp_server --config ${RP_ROBOT_CONFIG} --host ${RP_HOST} --port ${RP_PORT} --log-level ${RP_LOG_LEVEL}
+ExecStart=/bin/bash -lc 'cd $$ROBOOS_PREFIX/share/roboparty-rp-server; if [ -n "$$PYTHONPATH" ]; then export PYTHONPATH=$$ROBOOS_PREFIX/lib/python3/vendor-packages:$$ROBOOS_PREFIX/lib/python3/dist-packages:$$PYTHONPATH; else export PYTHONPATH=$$ROBOOS_PREFIX/lib/python3/vendor-packages:$$ROBOOS_PREFIX/lib/python3/dist-packages; fi; if [ -z "$$RP_ROBOT_CONFIG" ]; then RP_ROBOT_CONFIG=$$ROBOOS_PREFIX/share/roboparty_inference/robots/rpo/robot.yaml; fi; if [ -z "$$RP_HOST" ]; then RP_HOST=0.0.0.0; fi; if [ -z "$$RP_PORT" ]; then RP_PORT=9000; fi; if [ -z "$$RP_LOG_LEVEL" ]; then RP_LOG_LEVEL=info; fi; exec /usr/bin/python3 -m rp_server --config "$$RP_ROBOT_CONFIG" --host "$$RP_HOST" --port "$$RP_PORT" --log-level "$$RP_LOG_LEVEL"'
 # Uvicorn can exit with status 0 after a lifespan startup error.
 Restart=always
 RestartSec=5

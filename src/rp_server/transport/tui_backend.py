@@ -28,8 +28,9 @@ from typing import Any, Optional
 logger = logging.getLogger("rp_server.tui")
 
 DEFAULT_TIMEOUT = 120.0
+ROBOOS_PREFIX = os.environ.get("ROBOOS_PREFIX", "/opt/roboparty")
 CANDIDATES = (
-    "/opt/roboparty/bin/robopi-tui",
+    os.path.join(ROBOOS_PREFIX, "bin", "robopi-tui"),
     "/usr/bin/robopi-tui",
     "/usr/lib/robopi-tui/robopi-tui",
 )

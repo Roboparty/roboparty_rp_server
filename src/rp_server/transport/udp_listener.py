@@ -27,9 +27,10 @@ packet_logger = logging.getLogger("rp_server.packets")
 
 STOP_ACK_INTERVAL = 0.02
 STOP_ACK_MAX_SECONDS = 30.0
+ROBOOS_PREFIX = os.environ.get("ROBOOS_PREFIX", "/opt/roboparty")
 STOP_SCRIPT = os.environ.get(
     "RP_STOP_SCRIPT",
-    "/opt/roboparty/share/roboparty-rp-server/scripts/stop_robot.sh",
+    os.path.join(ROBOOS_PREFIX, "share/roboparty-rp-server/scripts/stop_robot.sh"),
 )
 
 

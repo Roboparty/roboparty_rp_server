@@ -467,7 +467,7 @@ Under systemd, logs are also written to the journal:
 
 ```bash
 journalctl -u rp-server -f
-tail -f /opt/roboparty/share/roboparty-rp-server/logs/rp_server.log
+tail -f ${ROBOOS_PREFIX:-/opt/roboparty}/share/roboparty-rp-server/logs/rp_server.log
 ```
 
 ---

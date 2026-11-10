@@ -2,9 +2,10 @@
 RP_HOST=0.0.0.0
 RP_PORT=9000
 RP_LOG_LEVEL=info
-RP_ROBOT_CONFIG=/opt/roboparty/share/roboparty_inference/robots/rpo/robot.yaml
-RP_SERVER_CONFIG=/opt/roboparty/share/roboparty-rp-server/config/server.yaml
-RP_STOP_SCRIPT=/opt/roboparty/share/roboparty-rp-server/scripts/stop_robot.sh
+# Optional overrides; defaults are derived from ROBOOS_PREFIX.
+# RP_ROBOT_CONFIG=$ROBOOS_PREFIX/share/roboparty_inference/robots/rpo/robot.yaml
+# RP_SERVER_CONFIG=$ROBOOS_PREFIX/share/roboparty-rp-server/config/server.yaml
+# RP_STOP_SCRIPT=$ROBOOS_PREFIX/share/roboparty-rp-server/scripts/stop_robot.sh
 # Per-robot Ed25519 key (generated on first start, mode 0600).
 # RP_DEVICE_KEY=/etc/rp-server/auth/device.key
 

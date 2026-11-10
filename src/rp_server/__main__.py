@@ -14,6 +14,8 @@ from .log_upload import attach_log_server
 from .auth.tls import ensure_self_signed
 from .transport.ws_server import create_app
 
+ROBOOS_PREFIX = os.environ.get("ROBOOS_PREFIX", "/opt/roboparty")
+
 
 def _load_dotenv() -> None:
     """Load KEY=VALUE from repo-root .env into os.environ (no overwrite if set)."""
@@ -45,7 +47,7 @@ def _load_config(config_path: str = "") -> dict:
     if not config_path:
         config_path = os.environ.get(
             "RP_ROBOT_CONFIG",
-            "/opt/roboparty/share/roboparty_inference/robots/rpo/robot.yaml",
+            os.path.join(ROBOOS_PREFIX, "share/roboparty_inference/robots/rpo/robot.yaml"),
         )
     config: dict = {}
     if os.path.isfile(config_path):
@@ -58,7 +60,7 @@ def _load_config(config_path: str = "") -> dict:
 
     server_cfg = os.environ.get(
         "RP_SERVER_CONFIG",
-        "/opt/roboparty/share/roboparty-rp-server/config/server.yaml",
+        os.path.join(ROBOOS_PREFIX, "share/roboparty-rp-server/config/server.yaml"),
     )
     candidates = [
         server_cfg,

@@ -24,9 +24,9 @@ control:
 robot:
   # ROS 2 package name uses underscores (roboparty_inference). {policy} is
   # replaced by the validated PolicyCommand.name; keep robot in sync with
-  # /opt/roboparty/share/roboparty_inference/robots/<robot>/robot.yaml.
+  # ${ROBOOS_PREFIX}/share/roboparty_inference/robots/<robot>/robot.yaml.
   # 产品启动统一委托 roboparty-start；--foreground 让 PolicyDriver 管理整个进程组。
-  launch_cmd: "/opt/roboparty/bin/start_robot.sh --foreground --policy {policy}"
+  launch_cmd: "${ROBOOS_PREFIX:-/opt/roboparty}/bin/start_robot.sh --foreground --policy {policy}"
   # STATE_RUNNING is returned only after this service is visible. If ros2 is
   # missing or the probe fails, startup fails closed instead of reporting
   # process-only success.
@@ -138,7 +138,7 @@ tui:
   # Board-management backend: robopi-tui JSON-RPC (`robopi-tui rpc --protocol 1`).
   # Motion/telemetry stay in rp_server; this only proxies board tasks/snapshots.
   enabled: true
-  executable: ""       # autodetect: RP_TUI_BIN, PATH, /opt/roboparty/bin/robopi-tui
+  executable: ""       # autodetect: RP_TUI_BIN, PATH, ${ROBOOS_PREFIX}/bin/robopi-tui
   server: "rp_server"  # injected as RP_TUI_SERVER; appears in TUI backend results
   timeout_s: 120
   motor_cache_s: 2.0   # cache motors.get results for /api/status and WHAT_ERRORS

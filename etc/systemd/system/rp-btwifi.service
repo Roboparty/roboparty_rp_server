@@ -14,7 +14,7 @@ User=root
 Group=root
 EnvironmentFile=-/etc/roboos/env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/bin/bash -lc 'export PYTHONPATH=$$ROBOOS_PREFIX/lib/python3/dist-packages; exec /usr/bin/python3 -m rp_server.btwifi'
+ExecStart=/bin/bash -lc 'ROBOOS_PREFIX=$${ROBOOS_PREFIX:-/opt/roboparty}; export PYTHONPATH=$$ROBOOS_PREFIX/lib/python3/dist-packages; exec /usr/bin/python3 -m rp_server.btwifi'
 Restart=always
 RestartSec=5
 TimeoutStopSec=10

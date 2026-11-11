@@ -1,3 +1,10 @@
+roboparty-rp-server (1.5.6-1) unstable; urgency=medium
+
+  * Default ROBOOS_PREFIX to /opt/roboparty when /etc/roboos/env is absent,
+    so the packaged systemd units work on existing robots.
+
+ -- RoboParty <2321901849@qq.com>  Wed, 11 Nov 2026 13:00:00 +0800
+
 roboparty-rp-server (1.5.5-1) unstable; urgency=medium
 
   * Boot path is read-only: motors are probed without enabling, and the

@@ -180,8 +180,20 @@ def test_revocation_closes_idle_session(app):
 
 
 def test_unleased_legacy_transport_fails_closed():
-    for transport in ("udp", "serial", "bluetooth"):
+    for transport in ("udp", "bluetooth"):
         with pytest.raises(ValueError, match="Unleased"):
             create_app({"transports": {transport: True}})
     with pytest.raises(ValueError, match="Unleased"):
         create_app({"can_gamepad": {"enabled": True}})
+
+
+def test_serial_transport_is_opt_in(tmp_path):
+    app = create_app({
+        "server": {"mock": True},
+        "transports": {"serial": True},
+        "serial": {"port": str(tmp_path / "tty"), "baudrate": 115200},
+        "tui": {"enabled": False},
+        "identity": {"device_key": str(tmp_path / "key"),
+                     "apps_path": str(tmp_path / "apps.json")},
+    })
+    assert app is not None

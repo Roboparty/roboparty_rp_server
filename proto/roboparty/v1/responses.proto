@@ -75,3 +75,22 @@ message Error {
   uint32 code = 1;
   string message = 2;
 }
+
+// Reply to LeaseCommand. Sent by stream transports (serial/Bluetooth).
+message LeaseResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ACQUIRED = 1;
+    STATUS_RELEASED = 2;
+    STATUS_HEARTBEAT = 3;
+    STATUS_STOPPED = 4;
+    STATUS_CLEARED = 5;
+    STATUS_BUSY = 6;
+    STATUS_ERROR = 7;
+  }
+  Status status = 1;
+  string request_id = 2;
+  uint32 ttl_ms = 3;
+  uint32 input_timeout_ms = 4;
+  string message = 5;
+}

@@ -37,6 +37,7 @@ message Envelope {
     ChallengeResponse challenge_response = 19;
     Heartbeat heartbeat = 20;
     StopRequest stop = 21;
+    LeaseCommand lease_command = 22;
 
     // ---- server -> client (30..59) ----
     ConnResponse conn = 30;
@@ -48,6 +49,7 @@ message Envelope {
     Challenge challenge = 36;
     AuthResult auth_result = 37;
     StopAck stop_ack = 38;
+    LeaseResponse lease_response = 39;
     ImuSample imu = 40;
     BatteryState battery = 41;
     MotorStates motors = 42;

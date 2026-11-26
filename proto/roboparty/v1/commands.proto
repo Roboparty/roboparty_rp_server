@@ -105,3 +105,18 @@ message Query {
 message ResetCommand {
   string token = 1;
 }
+
+// Explicit control-lease handshake for stream transports (serial/Bluetooth).
+// WebSocket clients use the JSON lease messages instead.
+message LeaseCommand {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_ACQUIRE = 1;
+    ACTION_RELEASE = 2;
+    ACTION_HEARTBEAT = 3;
+    ACTION_STOP = 4;
+    ACTION_CLEAR_STOP = 5;
+  }
+  Action action = 1;
+  string request_id = 2;
+}

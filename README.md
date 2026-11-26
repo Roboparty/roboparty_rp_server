@@ -1,8 +1,9 @@
 # RoboParty RP Server
 
 Protobuf (`roboparty.v1`) gateway for RK3588 with authenticated WebSocket control.
-Legacy UDP / Serial / Bluetooth and direct CAN gamepad implementations remain
-in source but cannot be enabled until they support shared control ownership.
+Legacy UDP / Bluetooth and direct CAN gamepad implementations remain in source
+but cannot be enabled until they support shared control ownership. Serial is
+opt-in and uses the same control lease as WebSocket clients.
 
 > **Frontend UI moved to [Roboparty/roboparty_example](https://github.com/Roboparty/roboparty_example)**
 
@@ -107,8 +108,11 @@ board, `grpcio-tools` on the build host). The generated bindings under
   STOP is a policy-only stop and does not latch. Administrative protobuf `reset`
   still clears errors and requires `admin` plus ownership; it is not an
   emergency-stop command.
-- Legacy `transports.udp/serial/bluetooth` and `can_gamepad.enabled` must be false.
+- Legacy `transports.udp/bluetooth` and `can_gamepad.enabled` must be false.
   Enabling them fails startup rather than providing an unleased control bypass.
+- `transports.serial` is opt-in. Read-only queries are always allowed; control
+  commands require `lease_command` acquire/heartbeat, and the lease
+  is shared with WebSocket clients.
 
 The changes have offline mock tests; they have not been deployed to a robot.
 
@@ -183,11 +187,12 @@ transport frames one `Envelope`:
 | `query` (`WHAT_CONN/SYSINFO/POLICY/ERRORS`) | read-only queries |
 | `button` / `joystick` / `control` | gamepad input |
 | `policy_command` | start/stop inference |
+| `lease_command` | serial/stream lease acquire/release/heartbeat/stop/clear |
 | `reset` | administrative reset: zero joystick + clear errors + stop policy; admin + lease |
 | `skill_action` | skill request (logged) |
 
 **Responses:** `conn`, `button_ack`, `sysinfo`, `policy_response`,
-`motor_errors`, `reset_response`, `error`.
+`motor_errors`, `reset_response`, `lease_response`, `error`.
 
 **Telemetry (auto-broadcast):** `imu` (50Hz), `battery` (50Hz),
 `motors` (1Hz), `motor_error_push` (10Hz).

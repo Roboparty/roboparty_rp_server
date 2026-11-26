@@ -102,9 +102,10 @@ def _tui_error_response(exc: TuiError) -> JSONResponse:
 def create_app(config: dict) -> FastAPI:
     app = FastAPI(title="RoboParty RP Server", version=__version__)
 
-    # These old paths write directly to drivers and cannot participate in leases.
+    # UDP and Bluetooth still bypass the control lease. Serial is enabled
+    # explicitly and uses LeaseCommand/ControlLease like WebSocket clients.
     transports = config.get("transports", {})
-    unsupported = [name for name in ("udp", "serial", "bluetooth") if transports.get(name)]
+    unsupported = [name for name in ("udp", "bluetooth") if transports.get(name)]
     if config.get("can_gamepad", {}).get("enabled"):
         unsupported.append("can_gamepad")
     if unsupported:
@@ -428,6 +429,7 @@ def create_app(config: dict) -> FastAPI:
         scfg.get("port", "/dev/ttyAMA0"),
         scfg.get("baudrate", 115200),
         handler,
+        lease,
     ) if transports_enabled.get("serial") else None
 
     bcfg = config.get("bluetooth", {})

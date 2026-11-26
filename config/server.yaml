@@ -1,7 +1,7 @@
 # RoboParty RP Server — server config
 transports:
   ws: true
-  serial: false
+  serial: false          # Trusted point-to-point link; control needs LeaseCommand.
   bluetooth: false
   udp: false              # Legacy paths cannot participate in control leases.
 
@@ -82,6 +82,8 @@ hardware:
   fail_startup_if_unavailable: false
 
 serial:
+  # Physical/trusted link. Read-only queries work immediately; motion, policy
+  # and reset require an explicit LeaseCommand acquire. No TLS/auth layer.
   port: "/dev/ttyAMA0"
   baudrate: 115200
 
